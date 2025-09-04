@@ -1,0 +1,37 @@
+<!DOCTYPE html><html lang="zh-cn"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>设置 - AI Transtor</title><link rel="stylesheet" href="css/base.css"/></head><body>
+<header class="bar"><h1 class="app-title">设置</h1><nav><a href="index.html">返回翻译</a></nav></header>
+<main class="layout settings">
+  <form id="settingsForm">
+    <fieldset><legend>基础</legend>
+      <label>API 类型 <select name="apiType" data-field="apiType"><option value="openai">OpenAI 兼容</option><option value="claude">Claude (Anthropic)</option></select></label>
+      <label>Base URL <input name="baseUrl" data-field="baseUrl" placeholder="https://api.openai.com/v1" required/></label>
+      <label>API Key <input name="apiKey" data-field="apiKey" type="password" placeholder="sk-..." autocomplete="off"/></label>
+      <label>模型 <input name="model" data-field="model" placeholder="gpt-4o-mini / claude-3-5-sonnet"/></label>
+      <label>默认目标语言 <select name="targetLanguage" data-field="targetLanguage"></select></label>
+    </fieldset>
+    <fieldset><legend>高级</legend>
+      <label>流式输出 <input type="checkbox" name="stream" data-field="stream" checked/></label>
+      <label>Temperature <input type="number" step="0.1" min="0" max="2" name="temperature" data-field="temperature"/></label>
+      <label>Max Tokens <input type="number" min="1" name="maxTokens" data-field="maxTokens"/></label>
+      <label>超时(ms) <input type="number" min="1000" name="timeoutMs" data-field="timeoutMs" placeholder="30000"/></label>
+  <label>重试次数 <input type="number" min="0" max="5" name="retries" data-field="retries" placeholder="2"/></label>
+      <label>主密码加密 <input type="checkbox" name="useMasterPassword" data-field="useMasterPassword"/></label>
+      <label>Store Responses <input type="checkbox" name="storeResponses" data-field="storeResponses"/></label>
+    </fieldset>
+    <fieldset><legend>Prompt 模板</legend>
+      <textarea name="promptTemplate" data-field="promptTemplate" rows="10" placeholder="Prompt 模板"></textarea>
+    </fieldset>
+    <div class="btn-row">
+      <button type="submit" class="btn primary">保存</button>
+      <button type="button" id="btnTest" class="btn">连通性测试</button>
+      <button type="button" id="btnExport" class="btn">导出</button>
+      <button type="button" id="btnImport" class="btn">导入</button>
+      <button type="button" id="btnNewSession" class="btn">新建会话</button>
+      <button type="button" id="btnDeleteSession" class="btn danger">删除会话</button>
+    </div>
+  </form>
+  <input type="file" id="importFile" accept="application/json" hidden />
+  <section id="settingsStatus" class="status" aria-live="polite">未修改</section>
+</main>
+<script type="module" src="js/ui-settings.js"></script>
+</body></html>

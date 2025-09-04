@@ -1,0 +1,17 @@
+{
+  "name": "ai-transtor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "clean": "node scripts/clean.mjs",
+    "preview": "node scripts/serve.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.21.5",
+    "serve-static": "^1.15.0",
+    "finalhandler": "^1.2.0"
+  }
+}
