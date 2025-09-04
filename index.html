@@ -2,6 +2,7 @@
 <header class="bar"><h1 class="app-title">AI Transtor <small id="buildInfo" style="font-weight:normal;font-size:0.6em;opacity:0.7"></small></h1><nav><button id="openSettings" class="btn">设置</button></nav></header>
 <main class="layout">
   <section class="controls">
+    <label>服务配置 <select id="serviceSelect"></select></label>
     <label>目标语言 <select id="langSelect" data-ref="lang"></select></label>
     <div class="btn-row">
       <button id="btnTranslate" class="btn primary">翻译 (Ctrl+Enter)</button>
@@ -29,6 +30,21 @@
     </header>
     <div class="modal-body">
       <form id="settingsForm">
+        <fieldset><legend>服务配置</legend>
+          <div class="btn-row" style="gap:.5rem;align-items:center;flex-wrap:wrap">
+            <label>当前服务 <select id="svcSelect"></select></label>
+            <label>名称 <input id="svcName" type="text" placeholder="服务名称"/></label>
+            <button type="button" id="btnAddSvc" class="btn">新增配置</button>
+            <button type="button" id="btnDelSvc" class="btn danger">删除配置</button>
+          </div>
+        </fieldset>
+        <fieldset><legend>全局</legend>
+          <label>主密码 (解锁用) <input name="masterPassword" id="masterPassword" data-field="masterPassword" type="password" placeholder="未勾选下方“主密码加密”则不会使用" autocomplete="new-password"/></label>
+          <label>主密码加密 <input type="checkbox" name="useMasterPassword" data-field="useMasterPassword"/></label>
+          <label>默认目标语言 <select name="targetLanguage" data-field="targetLanguage"></select></label>
+          <label>Prompt 模板</label>
+          <textarea name="promptTemplate" data-field="promptTemplate" rows="10" placeholder="Prompt 模板"></textarea>
+        </fieldset>
         <fieldset><legend>基础</legend>
           <label>API 类型 <select name="apiType" data-field="apiType">
             <option value="openai-responses">OpenAI Responses API</option>
@@ -37,9 +53,7 @@
           </select></label>
           <label>Base URL <input name="baseUrl" data-field="baseUrl" placeholder="https://api.openai.com/v1" required/></label>
           <label>API Key <input name="apiKey" data-field="apiKey" type="password" placeholder="sk-..." autocomplete="off"/></label>
-          <label>主密码 (解锁用) <input name="masterPassword" id="masterPassword" data-field="masterPassword" type="password" placeholder="未勾选下方“主密码加密”则不会使用" autocomplete="new-password"/></label>
           <label>模型 <input name="model" data-field="model" placeholder="gpt-4o-mini / claude-3-5-sonnet"/></label>
-          <label>默认目标语言 <select name="targetLanguage" data-field="targetLanguage"></select></label>
         </fieldset>
         <fieldset><legend>高级</legend>
           <label>流式输出 <input type="checkbox" name="stream" data-field="stream"/></label>
@@ -47,11 +61,7 @@
           <label>Max Tokens <input type="number" min="1" name="maxTokens" data-field="maxTokens"/></label>
           <label>超时(ms) <input type="number" min="1000" name="timeoutMs" data-field="timeoutMs" placeholder="30000"/></label>
           <label>重试次数 <input type="number" min="0" max="5" name="retries" data-field="retries" placeholder="2"/></label>
-          <label>主密码加密 <input type="checkbox" name="useMasterPassword" data-field="useMasterPassword"/></label>
           <label>Store Responses <input type="checkbox" name="storeResponses" data-field="storeResponses"/></label>
-        </fieldset>
-        <fieldset><legend>Prompt 模板</legend>
-          <textarea name="promptTemplate" data-field="promptTemplate" rows="10" placeholder="Prompt 模板"></textarea>
         </fieldset>
         <div class="btn-row">
           <button type="submit" class="btn primary">保存</button>

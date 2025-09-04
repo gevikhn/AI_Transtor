@@ -180,6 +180,7 @@ Out（首阶段不做）：术语表/不翻译词、批量并发翻译、历史�
 
 ---
 ## 13. Changelog
+- 2025-09-04: 配置结构升级为多服务（services[] + activeServiceId）；主密码改为全局统一加解密，多服务 API Key 均使用同一 master key；导入/导出兼容旧结构与按服务的加密元数据
 - 2025-09-04: 主密码明文迁移为 masterPasswordEnc（AES-GCM 混淆 + 校验位），移除 legacy 明文字段与旧解密分支
 - 2025-09-04: INIT 初稿创建
 - 2025-09-04: v0.1 基础骨架（HTML/CSS/配置/非流式 OpenAI）

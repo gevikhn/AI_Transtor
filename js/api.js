@@ -2,7 +2,7 @@
 // 说明：后续将实现 OpenAI Responses / Claude 适配。当前提供非流式 OpenAI 基础路径。
 
 import { renderTemplate } from './prompt.js';
-import { loadConfig, getApiKeyAuto } from './config.js';
+import { getActiveConfig, getApiKeyAuto } from './config.js';
 import { sseIterator } from './utils.js';
 import { previousResponseId, recordResponse } from './session.js';
 
@@ -28,7 +28,7 @@ function sanitizeSystem(fullInstr){
  * @returns {Promise<string>}
  */
 export async function translateOnce(text, opts={}){
-  const cfg = loadConfig();
+  const cfg = getActiveConfig();
   const target = opts.targetLanguage || cfg.targetLanguage;
   if (!cfg.apiKeyEnc) throw makeError('ConfigError','请在设置中填写 API Key');
   let apiKey;
@@ -106,7 +106,7 @@ function extractTextFromResponses(obj){
  * @returns {AsyncGenerator<string,{done:boolean,meta?:any}>}
  */
 export async function * translateStream(text, opts={}){
-  const cfg = loadConfig();
+  const cfg = getActiveConfig();
   if (!cfg.apiKeyEnc) throw makeError('ConfigError','请在设置中填写 API Key');
   let apiKey;
   try { apiKey = await getApiKeyAuto(); }

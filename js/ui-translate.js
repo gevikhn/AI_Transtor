@@ -1,9 +1,10 @@
 // ui-translate.js - 翻译页逻辑 (v0.1 非流式)
-import { loadConfig } from './config.js';
+import { loadConfig, setActiveService } from './config.js';
 import { translateOnce, translateStream } from './api.js';
 import { copyToClipboard, estimateTokens } from './utils.js';
 
 const langSelect = document.getElementById('langSelect');
+const serviceSelect = document.getElementById('serviceSelect');
 const inputEl = document.getElementById('inputText');
 const outputEl = document.getElementById('outputText');
 const statusBar = document.getElementById('statusBar');
@@ -22,6 +23,16 @@ function populateLangs(cfg){
   for (const [val,label] of LANGS){
     const o = document.createElement('option');
     o.value = val; o.textContent = label; if (val===cfg.targetLanguage) o.selected = true; langSelect.appendChild(o);
+  }
+}
+
+function populateServices(cfg){
+  if (!serviceSelect) return;
+  serviceSelect.innerHTML='';
+  const list = cfg.services || [];
+  for (const s of list){
+    const o = document.createElement('option');
+    o.value = s.id; o.textContent = s.name || s.id; if (s.id===cfg.activeServiceId) o.selected = true; serviceSelect.appendChild(o);
   }
 }
 
@@ -157,8 +168,15 @@ inputEl.addEventListener('drop', e=>{
 (function init(){
   const cfg = loadConfig();
   populateLangs(cfg);
+  populateServices(cfg);
   // 不再恢复上次输入/输出
 })();
 
 // 输入监听持久化（节流）
 // 取消输入节流持久化
+
+// 服务切换
+serviceSelect?.addEventListener('change', (e)=>{
+  const id = e.target.value;
+  setActiveService(id);
+});
