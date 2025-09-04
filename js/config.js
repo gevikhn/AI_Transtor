@@ -174,6 +174,7 @@ export function loadConfig(){
     if (!data.promptTemplate || data.promptTemplate === '加载中...') data.promptTemplate = DEFAULT_PROMPT_TEMPLATE;
     // 规范化全局数字字段
     ['temperature','maxTokens','timeoutMs','retries'].forEach(k=>{ if (data[k]!==undefined && data[k]!=='' ) data[k] = Number(data[k]); });
+    data.useMasterPassword = !!data.masterPasswordEnc;
     // 规范化服务级温度/最大 Token（若未触发 normalizeServices）
     if (Array.isArray(data.services)){
       data.services = data.services.map(s=>({

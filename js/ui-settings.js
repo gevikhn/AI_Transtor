@@ -1,5 +1,5 @@
 // ui-settings.js - 设置页逻辑 (v0.1 仅基础保存/加载 + 连通性占位)
-import { loadConfig, saveConfig, validateConfig, exportConfig, importConfig, DEFAULT_PROMPT_TEMPLATE, encryptApiKey, getActiveService, getActiveConfig, getApiKeyAuto } from './config.js';
+import { loadConfig, saveConfig, validateConfig, exportConfig, importConfig, DEFAULT_PROMPT_TEMPLATE, encryptApiKey, encryptMasterPassword, decryptMasterPassword, getActiveService, getActiveConfig, getApiKeyAuto } from './config.js';
 
 const form = document.getElementById('settingsForm');
 const statusEl = document.getElementById('settingsStatus');
@@ -54,14 +54,21 @@ form.addEventListener('submit', async e=>{
   ['timeoutMs','retries'].forEach(k=>{ if (next[k] !== undefined && next[k] !== '') next[k] = Number(next[k]); });
   if (svc.temperature!==undefined && svc.temperature!=='') svc.temperature = Number(svc.temperature); else svc.temperature = 0;
   if (svc.maxTokens!==undefined && svc.maxTokens!=='') svc.maxTokens = Number(svc.maxTokens); else svc.maxTokens = undefined;
-  // 如果启用主密码并且用户填写了 masterPassword 与 apiKeyVisible 原值（假设 data-field=apiKeyEnc 输入的是明文）
-  const mp = document.getElementById('masterPassword');
-  const apiInput = form.querySelector('[data-field=apiKey]') || form.querySelector('[data-field=apiKeyEnc]');
-  if (next.useMasterPassword && mp && mp.value && apiInput && (apiInput.dataset.changed==='1' || !next.apiKeyEnc.startsWith('sk-'))){
-    try { svc.apiKeyEnc = await encryptApiKey(apiInput.value.trim(), mp.value.trim(), svc.id); }
-    catch(e){ statusEl.textContent='加密失败: '+e.message; return; }
-  }
-  const errs = validateConfig(next);
+    // 主密码自动加密
+    const mp = document.getElementById('masterPassword');
+    const apiInput = form.querySelector('[data-field=apiKey]') || form.querySelector('[data-field=apiKeyEnc]');
+    if (mp && (mp.value || cfg.masterPasswordEnc) && apiInput && (apiInput.dataset.changed==='1' || !next.apiKeyEnc.startsWith('sk-'))){
+      try {
+        const mpPlain = mp.value ? mp.value.trim() : await decryptMasterPassword(cfg.masterPasswordEnc);
+        svc.apiKeyEnc = await encryptApiKey(apiInput.value.trim(), mpPlain, svc.id);
+        next.masterPasswordEnc = await encryptMasterPassword(mpPlain);
+      }
+      catch(e){ statusEl.textContent='加密失败: '+e.message; return; }
+    } else {
+      next.masterPasswordEnc = cfg.masterPasswordEnc || '';
+    }
+    next.useMasterPassword = !!next.masterPasswordEnc;
+    const errs = validateConfig(next);
   if (errs.length){ statusEl.textContent = errs.join(' / '); return; }
   next.services = (next.services||cfg.services||[]).map(s=> s.id===svc.id ? { ...s, ...svc } : s);
   saveConfig(next);
