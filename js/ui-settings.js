@@ -21,7 +21,7 @@ function loadIntoForm(){
   const svc = getActiveService(cfg);
   [...form.querySelectorAll('[data-field]')].forEach(el=>{
     const key = el.getAttribute('data-field');
-    if (['apiType','baseUrl','model'].includes(key)){
+    if (['apiType','baseUrl','model','temperature','maxTokens'].includes(key)){
       if (el.type==='checkbox') el.checked = !!svc[key];
       else el.value = svc[key] == null ? '' : svc[key];
     } else {
@@ -45,12 +45,15 @@ form.addEventListener('submit', async e=>{
     const key = el.getAttribute('data-field');
     if (key === 'apiKey') return; // 不保存明文字段
     const val = el.type==='checkbox' ? el.checked : el.value.trim();
-    if (['apiType','baseUrl','model'].includes(key)) svc[key] = val; else next[key] = val;
+    if (['apiType','baseUrl','model','temperature','maxTokens'].includes(key)) svc[key] = val; else next[key] = val;
   });
   // 兼容：html 用 apiKey，配置字段是 apiKeyEnc（未加密时直接存）
   if ('apiKey' in next){ if (next.apiKey) svc.apiKeyEnc = next.apiKey; delete next.apiKey; }
   // 规范化数字字段
-  ['temperature','maxTokens','timeoutMs','retries'].forEach(k=>{ if (next[k] !== undefined && next[k] !== '') next[k] = Number(next[k]); });
+  // 数字规范化：全局与服务级分别处理
+  ['timeoutMs','retries'].forEach(k=>{ if (next[k] !== undefined && next[k] !== '') next[k] = Number(next[k]); });
+  if (svc.temperature!==undefined && svc.temperature!=='') svc.temperature = Number(svc.temperature); else svc.temperature = 0;
+  if (svc.maxTokens!==undefined && svc.maxTokens!=='') svc.maxTokens = Number(svc.maxTokens); else svc.maxTokens = undefined;
   // 如果启用主密码并且用户填写了 masterPassword 与 apiKeyVisible 原值（假设 data-field=apiKeyEnc 输入的是明文）
   const mp = document.getElementById('masterPassword');
   const apiInput = form.querySelector('[data-field=apiKey]') || form.querySelector('[data-field=apiKeyEnc]');

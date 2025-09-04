@@ -63,7 +63,7 @@ async function doTranslate(){
   outputEl.value = result;
   // 不再持久化输出
         const ms = Math.round(performance.now()-start);
-        setStatus(`完成 ${ms}ms | ~${estimateTokens(result)} tok` + (attempt?` | 重试${attempt}`:''));
+        setStatus(`完成 ${ms}ms | ~${estimateTokens(result)} token` + (attempt?` | 重试${attempt}`:''));
         break;
       } catch(e){
         if (e.name==='AbortError'){ setStatus('已取消'); break; }
@@ -102,12 +102,12 @@ async function doTranslate(){
             scheduleFlush();
             // 实时 token 估算（输出 + 输入）
             const outPreviewLen = outputEl.value.length + buffer.pending.length;
-            setStatus(`流式中... ~in:${estimateTokens(text)} tok / out:${estimateTokens(outPreviewLen+'')} tok`);
+            setStatus(`流式中... ~in:${estimateTokens(text)} token / out:${estimateTokens(outPreviewLen+'')} token`);
         }
       }
       if (buffer.pending){ outputEl.value += buffer.pending; buffer.pending=''; }
       const ms = Math.round(performance.now()-start);
-      setStatus(`完成 ${ms}ms | ~${estimateTokens(outputEl.value)} tok` + (attempt?` | 重试${attempt}`:''));
+      setStatus(`完成 ${ms}ms | ~${estimateTokens(outputEl.value)} token` + (attempt?` | 重试${attempt}`:''));
       break;
     } catch(e){
       if (e.name === 'AbortError'){ setStatus('已取消'); break; }
@@ -123,7 +123,7 @@ async function doTranslate(){
           outputEl.value = result;
           // 不再持久化输出
           const ms = Math.round(performance.now()-start);
-          setStatus(`回退完成 ${ms}ms | ~${estimateTokens(result)} tok`);
+          setStatus(`回退完成 ${ms}ms | ~${estimateTokens(result)} token`);
         } catch(e2){ setStatus(e.message||'流式失败'); }
       } else {
         setStatus(e.message||'流式失败');
@@ -179,4 +179,20 @@ inputEl.addEventListener('drop', e=>{
 serviceSelect?.addEventListener('change', (e)=>{
   const id = e.target.value;
   setActiveService(id);
+});
+
+// 监听配置变更事件，动态刷新服务下拉与语言（如默认语言修改）
+window.addEventListener('ai-tr:config-changed', ()=>{
+  const cfg = loadConfig();
+  populateServices(cfg);
+  populateLangs(cfg);
+});
+
+// 跨标签页/窗口更新：监听 localStorage 变更
+window.addEventListener('storage', (e)=>{
+  if (e.key === 'AI_TR_CFG_V1'){
+    const cfg = loadConfig();
+    populateServices(cfg);
+    populateLangs(cfg);
+  }
 });

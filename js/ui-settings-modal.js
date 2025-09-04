@@ -46,7 +46,7 @@ function loadIntoForm(){
   // 全局字段
   [...form.querySelectorAll('[data-field]')].forEach(el=>{
     const key = el.getAttribute('data-field');
-    const serviceKeys = ['apiType','baseUrl','model'];
+    const serviceKeys = ['apiType','baseUrl','model','temperature','maxTokens'];
     if (serviceKeys.includes(key)){
       if (el.type==='checkbox') el.checked = !!svc[key]; else el.value = svc[key] == null ? '' : svc[key];
     } else {
@@ -92,7 +92,7 @@ form.addEventListener('submit', async e=>{
     const key = el.getAttribute('data-field');
     if (key === 'apiKey') return; // 跳过保存明文字段
     const val = el.type==='checkbox' ? el.checked : el.value.trim();
-    if (['apiType','baseUrl','model'].includes(key)) svc[key] = val;
+    if (['apiType','baseUrl','model','temperature','maxTokens'].includes(key)) svc[key] = val;
     else next[key] = val;
   });
   // 兜底：移除可能残留的全局 apiKey 字段
@@ -100,7 +100,10 @@ form.addEventListener('submit', async e=>{
   // 表单兼容：apiKey 输入映射到 svc.apiKeyEnc（明文或密文）
   const apiInput = form.querySelector('[data-field=apiKey]');
   if (apiInput && apiInput.value && apiInput.value !== MASK){ svc.apiKeyEnc = apiInput.value.trim(); }
-  ['temperature','maxTokens','timeoutMs','retries'].forEach(k=>{ if (next[k]!==undefined && next[k] !== '') next[k] = Number(next[k]); });
+  // 数字规范化：全局与服务级分别处理
+  ['timeoutMs','retries'].forEach(k=>{ if (next[k]!==undefined && next[k] !== '') next[k] = Number(next[k]); });
+  if (svc.temperature!==undefined && svc.temperature!=='') svc.temperature = Number(svc.temperature); else svc.temperature = 0;
+  if (svc.maxTokens!==undefined && svc.maxTokens!=='') svc.maxTokens = Number(svc.maxTokens); else svc.maxTokens = undefined;
   const mp = qsMaster();
   // 仅当用户真正修改（脱离掩码）才重新加密
   if (apiInput){
@@ -244,7 +247,7 @@ btnAddSvc?.addEventListener('click', ()=>{
   const cfg = loadConfig();
   const idx = (cfg.services||[]).length + 1;
   const id = `svc-${Date.now()}-${idx}`;
-  const base = { id, name:`服务${idx}`, apiType:'openai-responses', baseUrl:'https://api.openai.com/v1', apiKeyEnc:'', model:'gpt-4o-mini' };
+  const base = { id, name:`服务${idx}`, apiType:'openai-responses', baseUrl:'https://api.openai.com/v1', apiKeyEnc:'', model:'gpt-4o-mini', temperature: 0, maxTokens: undefined };
   cfg.services = [...(cfg.services||[]), base];
   cfg.activeServiceId = id;
   saveConfig(cfg); loadIntoForm(); statusEl.textContent = '已新增服务配置';

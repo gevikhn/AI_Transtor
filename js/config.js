@@ -43,7 +43,10 @@ const defaultConfig = {
       apiType: 'openai-responses', // openai-responses | openai-chat | claude
       baseUrl: 'https://api.openai.com/v1',
       apiKeyEnc: '',
-      model: 'gpt-4o-mini'
+      model: 'gpt-4o-mini',
+      // 将温度与最大 Token 改为服务级别配置（兼容：若不存在则回退到全局默认值）
+      temperature: 0,
+      maxTokens: undefined
     }
   ],
   activeServiceId: 'svc-1'
@@ -104,6 +107,11 @@ function normalizeServices(arr){
     if (!out.baseUrl) out.baseUrl = 'https://api.openai.com/v1';
     if (out.apiKeyEnc == null) out.apiKeyEnc = '';
     if (!out.model) out.model = 'gpt-4o-mini';
+    // 服务级别温度/最大 Token 的缺省与数值规范化
+    if (out.temperature === undefined || out.temperature === '') out.temperature = 0;
+    else out.temperature = Number(out.temperature);
+    if (out.maxTokens === undefined || out.maxTokens === '') out.maxTokens = undefined;
+    else out.maxTokens = Number(out.maxTokens);
     return out;
   });
 }
@@ -117,10 +125,14 @@ function migrateToMultiServices(dataIn){
     apiType: data.apiType || 'openai-responses',
     baseUrl: data.baseUrl || 'https://api.openai.com/v1',
     apiKeyEnc: data.apiKeyEnc || '',
-    model: data.model || 'gpt-4o-mini'
+    model: data.model || 'gpt-4o-mini',
+    // 将旧的全局 temperature / maxTokens 迁移到首个服务
+    temperature: (data.temperature!==undefined && data.temperature!=='') ? Number(data.temperature) : 0,
+    maxTokens: (data.maxTokens!==undefined && data.maxTokens!=='') ? Number(data.maxTokens) : undefined
   };
   if (service.apiType === 'openai') service.apiType = 'openai-responses';
   delete data.apiType; delete data.baseUrl; delete data.apiKeyEnc; delete data.model;
+  // 迁移后保留全局 temperature/maxTokens 作为回退默认，但优先使用服务级值
   const merged = { ...defaultConfig, ...data, services: [ service ], activeServiceId: 'svc-1' };
   // 迁移旧 API 元数据到服务专属键
   try {
@@ -160,7 +172,16 @@ export function loadConfig(){
     if ('apiKey' in data) delete data.apiKey;
     if (Array.isArray(data.services)) data.services = data.services.map(s=>{ const o={...s}; if ('apiKey' in o) delete o.apiKey; return o; });
     if (!data.promptTemplate || data.promptTemplate === '加载中...') data.promptTemplate = DEFAULT_PROMPT_TEMPLATE;
+    // 规范化全局数字字段
     ['temperature','maxTokens','timeoutMs','retries'].forEach(k=>{ if (data[k]!==undefined && data[k]!=='' ) data[k] = Number(data[k]); });
+    // 规范化服务级温度/最大 Token（若未触发 normalizeServices）
+    if (Array.isArray(data.services)){
+      data.services = data.services.map(s=>({
+        ...s,
+        temperature: (s.temperature===undefined || s.temperature==='') ? 0 : Number(s.temperature),
+        maxTokens: (s.maxTokens===undefined || s.maxTokens==='') ? undefined : Number(s.maxTokens)
+      }));
+    }
     return { ...defaultConfig, ...data };
   } catch(e){
     console.warn('Failed to load config', e);
@@ -177,6 +198,10 @@ export function saveConfig(cfg){
   if ('apiKey' in clean) delete clean.apiKey;
   clean.services = clean.services.map(s=>{ const o={...s}; if ('apiKey' in o) delete o.apiKey; return o; });
   localStorage.setItem(STORAGE_KEY, JSON.stringify(clean));
+  try {
+    // 通知同页其他模块（例如翻译页下拉）进行刷新
+    window.dispatchEvent(new CustomEvent('ai-tr:config-changed', { detail: { cfg: clean } }));
+  } catch { /* ignore */ }
   return clean;
 }
 
