@@ -55,18 +55,19 @@ form.addEventListener('submit', async e=>{
   if (svc.temperature!==undefined && svc.temperature!=='') svc.temperature = Number(svc.temperature); else svc.temperature = 0;
   if (svc.maxTokens!==undefined && svc.maxTokens!=='') svc.maxTokens = Number(svc.maxTokens); else svc.maxTokens = undefined;
     // 主密码自动加密
-    const mp = document.getElementById('masterPassword');
-    const apiInput = form.querySelector('[data-field=apiKey]') || form.querySelector('[data-field=apiKeyEnc]');
-    if (mp && (mp.value || cfg.masterPasswordEnc) && apiInput && (apiInput.dataset.changed==='1' || !svc.apiKeyEnc?.startsWith('sk-'))){
-      try {
-        const mpPlain = mp.value ? mp.value.trim() : await decryptMasterPassword(cfg.masterPasswordEnc);
-        svc.apiKeyEnc = await encryptApiKey(apiInput.value.trim(), mpPlain, svc.id);
-        next.masterPasswordEnc = await encryptMasterPassword(mpPlain);
-      }
-      catch(e){ statusEl.textContent='加密失败: '+e.message; return; }
-    } else {
-      next.masterPasswordEnc = cfg.masterPasswordEnc || '';
+  const mp = document.getElementById('masterPassword');
+  const apiInput = form.querySelector('[data-field=apiKey]') || form.querySelector('[data-field=apiKeyEnc]');
+  if (mp && (mp.value || cfg.masterPasswordEnc) && apiInput && apiInput.dataset.changed==='1'){
+    try {
+      const mpPlain = mp.value ? mp.value.trim() : await decryptMasterPassword(cfg.masterPasswordEnc);
+      const rawKey = apiInput.dataset.changed === '1' ? apiInput.value.trim() : svc.apiKeyEnc;
+      svc.apiKeyEnc = rawKey ? await encryptApiKey(rawKey, mpPlain, svc.id) : '';
+      next.masterPasswordEnc = await encryptMasterPassword(mpPlain);
     }
+    catch(e){ statusEl.textContent='加密失败: '+e.message; return; }
+  } else {
+    next.masterPasswordEnc = cfg.masterPasswordEnc || '';
+  }
     next.useMasterPassword = !!next.masterPasswordEnc;
     const errs = validateConfig(next);
   if (errs.length){ statusEl.textContent = errs.join(' / '); return; }
