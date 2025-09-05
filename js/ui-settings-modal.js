@@ -132,10 +132,7 @@ form.addEventListener('submit', async e=>{
       try { svc.apiKeyEnc = await encryptApiKey(raw, newMasterPlain, svc.id); }
       catch(e){ statusEl.textContent='加密失败: '+e.message; return; }
       unlockedPlainKey = raw;
-    } else if (masterChanged && svc.apiKeyEnc){
-      try {
-        const oldMaster = cfg.masterPasswordEnc ? await decryptMasterPassword(cfg.masterPasswordEnc) : '';
-        const raw = await decryptApiKey(getActiveService(cfg).apiKeyEnc, oldMaster, svc.id);
+        const raw = await decryptApiKey(svc.apiKeyEnc, oldMaster, svc.id);
         svc.apiKeyEnc = await encryptApiKey(raw, newMasterPlain, svc.id);
         unlockedPlainKey = raw;
       } catch { statusEl.textContent='主密码重加密失败'; return; }
@@ -232,9 +229,7 @@ if (apiField){
 }
 const mpField = qsMaster();
 if (mpField){
-  mpField.addEventListener('focus', e=>{
-    if (e.target.value===MASK){ e.target.value=''; }
-    if (e.target.dataset.raw){ e.target.value = e.target.dataset.raw; }
+    if (e.target.dataset.raw !== undefined){ e.target.value = e.target.dataset.raw; }
     e.target.dataset.changed='1';
   });
   mpField.addEventListener('blur', e=>{
