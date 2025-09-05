@@ -57,7 +57,7 @@ form.addEventListener('submit', async e=>{
     // 主密码自动加密
     const mp = document.getElementById('masterPassword');
     const apiInput = form.querySelector('[data-field=apiKey]') || form.querySelector('[data-field=apiKeyEnc]');
-    if (mp && (mp.value || cfg.masterPasswordEnc) && apiInput && (apiInput.dataset.changed==='1' || !next.apiKeyEnc.startsWith('sk-'))){
+    if (mp && (mp.value || cfg.masterPasswordEnc) && apiInput && (apiInput.dataset.changed==='1' || !svc.apiKeyEnc?.startsWith('sk-'))){
       try {
         const mpPlain = mp.value ? mp.value.trim() : await decryptMasterPassword(cfg.masterPasswordEnc);
         svc.apiKeyEnc = await encryptApiKey(apiInput.value.trim(), mpPlain, svc.id);
