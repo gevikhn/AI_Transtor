@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ai-transtor-cache-v1';
+const CACHE_NAME = 'ai-translator-cache-v1';
 const CORE_ASSETS = [
   './index.html',
   './css/base.css',
@@ -15,9 +15,10 @@ self.addEventListener('install', event => {
     await cache.addAll(CORE_ASSETS);
     try {
       const res = await fetch('./js/chunk-manifest.json');
+      const copy = res.clone();
       const files = await res.json();
       await cache.addAll(files);
-      cache.put('./js/chunk-manifest.json', res);
+      await cache.put('./js/chunk-manifest.json', copy);
     } catch (e) {
       // chunk manifest not found – likely dev mode
     }
@@ -41,7 +42,11 @@ self.addEventListener('fetch', event => {
       if (resp) return resp;
       return fetch(event.request).then(r => {
         const copy = r.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
+        event.waitUntil(
+          caches.open(CACHE_NAME)
+            .then(cache => cache.put(event.request, copy))
+            .catch(() => {})
+        );
         return r;
       });
     }).catch(() => {
