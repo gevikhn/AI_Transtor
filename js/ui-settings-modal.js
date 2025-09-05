@@ -46,6 +46,7 @@ function loadIntoForm(){
   // 全局字段
   [...form.querySelectorAll('[data-field]')].forEach(el=>{
     const key = el.getAttribute('data-field');
+    if (['apiKey','masterPassword'].includes(key)) return; // 这些字段单独处理
     const serviceKeys = ['apiType','baseUrl','model','temperature','maxTokens'];
     if (serviceKeys.includes(key)){
       if (el.type==='checkbox') el.checked = !!svc[key]; else el.value = svc[key] == null ? '' : svc[key];
@@ -62,7 +63,8 @@ function loadIntoForm(){
   const mpInput = qsMaster();
   if (mpInput){
     mpInput.dataset.changed = '0';
-    if (cfg.useMasterPassword && cfg.masterPasswordEnc){ mpInput.value = MASK; }
+    if (mpInput.dataset.raw) delete mpInput.dataset.raw;
+    if (cfg.masterPasswordEnc){ mpInput.value = MASK; }
   }
   if (!form.querySelector('[data-field=promptTemplate]').value){ form.querySelector('[data-field=promptTemplate]').value = DEFAULT_PROMPT_TEMPLATE; }
   fillLanguages(form.querySelector('[data-field=targetLanguage]'), cfg);
@@ -84,19 +86,20 @@ form.addEventListener('submit', async e=>{
   e.preventDefault();
   const cfg = loadConfig();
   const next = { ...cfg };
-  const svc = getActiveService(cfg);
+  const svc = { ...getActiveService(cfg) };
   // 更新服务名
   if (svcName && svcName.value.trim()){ svc.name = svcName.value.trim(); }
   // 回写表单字段（禁止将明文 apiKey 写入配置）
   [...form.querySelectorAll('[data-field]')].forEach(el=>{
     const key = el.getAttribute('data-field');
-    if (key === 'apiKey') return; // 跳过保存明文字段
+    if (key === 'apiKey' || key === 'masterPassword') return; // 跳过保存明文字段
     const val = el.type==='checkbox' ? el.checked : el.value.trim();
     if (['apiType','baseUrl','model','temperature','maxTokens'].includes(key)) svc[key] = val;
     else next[key] = val;
   });
-  // 兜底：移除可能残留的全局 apiKey 字段
+  // 兜底：移除可能残留的全局 apiKey/masterPassword 字段
   if ('apiKey' in next) delete next.apiKey;
+  if ('masterPassword' in next) delete next.masterPassword;
   // 表单兼容：apiKey 输入映射到 svc.apiKeyEnc（明文或密文）
   const apiInput = form.querySelector('[data-field=apiKey]');
   if (apiInput && apiInput.value && apiInput.value !== MASK){ svc.apiKeyEnc = apiInput.value.trim(); }
@@ -105,64 +108,135 @@ form.addEventListener('submit', async e=>{
   if (svc.temperature!==undefined && svc.temperature!=='') svc.temperature = Number(svc.temperature); else svc.temperature = 0;
   if (svc.maxTokens!==undefined && svc.maxTokens!=='') svc.maxTokens = Number(svc.maxTokens); else svc.maxTokens = undefined;
   const mp = qsMaster();
-  // 仅当用户真正修改（脱离掩码）才重新加密
+  let masterChanged = false;
+  let newMasterPlain = '';
+  let oldMasterPlain = '';
+  const stagedMetas = [];
+  let stagedMasterMeta;
+  if (mp){
+    if (mp.dataset.changed==='1'){
+      const rawVal = mp.dataset.raw != null ? mp.dataset.raw : (mp.value===MASK ? '' : mp.value);
+      newMasterPlain = rawVal.trim();
+      if (cfg.masterPasswordEnc){
+        try { oldMasterPlain = await decryptMasterPassword(cfg.masterPasswordEnc); }
+        catch { oldMasterPlain = ''; }
+      }
+      if (newMasterPlain === oldMasterPlain){
+        next.masterPasswordEnc = cfg.masterPasswordEnc;
+      } else {
+        masterChanged = true;
+      }
+    } else {
+      next.masterPasswordEnc = cfg.masterPasswordEnc;
+      if (cfg.masterPasswordEnc){
+        try { newMasterPlain = await decryptMasterPassword(cfg.masterPasswordEnc); }
+        catch { newMasterPlain=''; }
+      }
+    }
+  }
   if (apiInput){
     if (apiInput.dataset.changed==='1'){
       const raw = apiInput.value.trim();
-      let mpPlain = '';
-      if (next.useMasterPassword){
-        if (mp?.dataset.changed==='1'){ mpPlain = mp.value.trim(); }
-        else if (cfg.useMasterPassword && cfg.masterPasswordEnc){ try { mpPlain = await decryptMasterPassword(cfg.masterPasswordEnc); } catch { mpPlain=''; } }
-      }
-      try { svc.apiKeyEnc = await encryptApiKey(raw, next.useMasterPassword ? mpPlain : '', svc.id); }
-      catch(e){ statusEl.textContent='加密失败: '+e.message; return; }
+      try {
+        const { enc, meta, metaKey } = await encryptApiKey(raw, newMasterPlain, svc.id, { returnMeta: true, skipStore: true });
+        svc.apiKeyEnc = enc;
+        stagedMetas.push({ metaKey, meta });
+      } catch(e){ statusEl.textContent='加密失败: '+e.message; return; }
       unlockedPlainKey = raw;
+    } else if (masterChanged && svc.apiKeyEnc){
+      try {
+        const raw = await decryptApiKey(svc.apiKeyEnc, oldMasterPlain, svc.id);
+        const { enc, meta, metaKey } = await encryptApiKey(raw, newMasterPlain, svc.id, { returnMeta: true, skipStore: true });
+        svc.apiKeyEnc = enc;
+        stagedMetas.push({ metaKey, meta });
+        unlockedPlainKey = raw;
+      } catch { statusEl.textContent='主密码重加密失败'; return; }
     } else {
-      // 没改：保持原 apiKeyEnc（在 svc 上）
       const prevSvc = getActiveService(cfg);
       svc.apiKeyEnc = prevSvc.apiKeyEnc;
     }
   }
-  // 主密码：如果启用并修改了才覆盖；如果取消启用则清空
-  if (!next.useMasterPassword){
-    // 如果用户输入了主密码但未勾选开关，提示而不保存
-    const mpInput = qsMaster();
-    if (mpInput && mpInput.value && mpInput.value!==MASK){
-      statusEl.textContent='未勾选“主密码加密”，输入的主密码未被保存';
+  let otherServices = (cfg.services || []).map(s => ({ ...s }));
+  if (masterChanged){
+    const reencServices = [];
+    for (const s of otherServices){
+      if (s.id === svc.id || !s.apiKeyEnc){
+        reencServices.push(s);
+        continue;
+      }
+      try {
+        const raw = await decryptApiKey(s.apiKeyEnc, oldMasterPlain, s.id);
+        const { enc, meta, metaKey } = await encryptApiKey(raw, newMasterPlain, s.id, { returnMeta: true, skipStore: true });
+        reencServices.push({ ...s, apiKeyEnc: enc });
+        stagedMetas.push({ metaKey, meta });
+      } catch {
+        statusEl.textContent='主密码重加密失败';
+        return;
+      }
     }
-    next.masterPasswordEnc = '';
-  } else if (mp){
-    if (mp.dataset.changed==='1'){
-      const plainMp = mp.value===MASK ? '' : mp.value.trim();
-      if (plainMp){
-        try { next.masterPasswordEnc = await encryptMasterPassword(plainMp); }
-        catch(e){ statusEl.textContent='主密码加密失败: '+e.message; return; }
-      } else {
-        next.masterPasswordEnc = cfg.masterPasswordEnc; // 未真正修改
+    otherServices = reencServices;
+  }
+  if (mp && masterChanged){
+    if (newMasterPlain){
+      try {
+        const { enc, meta } = await encryptMasterPassword(newMasterPlain, { returnMeta: true, skipStore: true });
+        next.masterPasswordEnc = enc;
+        stagedMasterMeta = meta;
       }
-      // 如果修改了主密码且没改 API Key，需要用新密码重新加密（保持可解）
-      if (mp.dataset.changed==='1' && apiInput && apiInput.dataset.changed!=='1'){
-        try {
-          const mpPlain = plainMp || (cfg.masterPasswordEnc ? await decryptMasterPassword(cfg.masterPasswordEnc) : '');
-          if (unlockedPlainKey){
-            svc.apiKeyEnc = await encryptApiKey(unlockedPlainKey, mpPlain, svc.id);
-          } else {
-            statusEl.textContent='主密码已改，需重新输入 API Key 以重新加密';
-            return;
-          }
-        } catch { statusEl.textContent='主密码重加密失败'; return; }
-      }
+      catch(e){ statusEl.textContent='主密码加密失败: '+e.message; return; }
     } else {
-      next.masterPasswordEnc = cfg.masterPasswordEnc;
+      next.masterPasswordEnc = '';
+      stagedMasterMeta = null;
     }
   }
+  // 写回服务数组（替换当前 active 项）并验证配置
+  next.services = otherServices.map(s=> s.id===svc.id ? { ...s, ...svc } : s);
   const errs = validateConfig(next);
   if (errs.length){ statusEl.textContent = errs.join(' / '); return; }
-  // 写回服务数组（替换当前 active 项）
-  next.services = (next.services||cfg.services||[]).map(s=> s.id===svc.id ? { ...s, ...svc } : s);
-  saveConfig(next);
-  if (apiInput) apiInput.dataset.changed='0';
-  if (mp) mp.dataset.changed='0';
+  const prevCfgRaw = localStorage.getItem('AI_TR_CFG_V1');
+  const prevMetaVals = {};
+  const writtenMetaKeys = [];
+  let prevMasterMeta;
+  let masterMetaWritten = false;
+  try {
+    for (const { metaKey, meta } of stagedMetas){
+      prevMetaVals[metaKey] = localStorage.getItem(metaKey);
+      localStorage.setItem(metaKey, JSON.stringify(meta));
+      writtenMetaKeys.push(metaKey);
+    }
+    if (mp && masterChanged){
+      prevMasterMeta = localStorage.getItem(MP_META_KEY);
+      if (next.masterPasswordEnc){
+        localStorage.setItem(MP_META_KEY, JSON.stringify(stagedMasterMeta));
+      } else {
+        localStorage.removeItem(MP_META_KEY);
+      }
+      masterMetaWritten = true;
+    }
+    saveConfig(next);
+  } catch(e){
+    for (const key of writtenMetaKeys){
+      const prev = prevMetaVals[key];
+      if (prev === null || prev === undefined) localStorage.removeItem(key);
+      else localStorage.setItem(key, prev);
+    }
+    if (mp && masterChanged && masterMetaWritten){
+      if (prevMasterMeta === null || prevMasterMeta === undefined) localStorage.removeItem(MP_META_KEY);
+      else localStorage.setItem(MP_META_KEY, prevMasterMeta);
+    }
+    if (prevCfgRaw === null) localStorage.removeItem('AI_TR_CFG_V1');
+    else localStorage.setItem('AI_TR_CFG_V1', prevCfgRaw);
+    statusEl.textContent='保存失败: '+e.message; return;
+  }
+  if (apiInput){
+    apiInput.dataset.changed='0';
+    if (svc.apiKeyEnc) apiInput.value = MASK;
+  }
+  if (mp){
+    mp.dataset.changed='0';
+    if (mp.dataset.raw) delete mp.dataset.raw;
+    mp.value = next.masterPasswordEnc ? MASK : '';
+  }
   statusEl.textContent = '已保存';
 });
 
@@ -201,7 +275,7 @@ importFile.addEventListener('change', async()=>{
     if (imported.__apiKeyMeta){ try { localStorage.setItem(ENC_META_KEY, JSON.stringify(imported.__apiKeyMeta)); } catch { /* ignore */ } }
 
     // 如果需要主密码验证
-    if (imported.useMasterPassword && imported.masterPasswordEnc){
+    if (imported.masterPasswordEnc){
       let mp = prompt('请输入导入配置的主密码以验证解锁');
       if (mp == null){ throw new Error('已取消'); }
       mp = mp.trim();
@@ -232,12 +306,43 @@ btnDeleteSession.addEventListener('click', ()=>{ statusEl.textContent='(未来: 
 // 监听 API Key 输入变更标记
 const apiField = form.querySelector('[data-field=apiKey]');
 if (apiField){
-  apiField.addEventListener('focus', e=>{ if (e.target.value===MASK){ e.target.value=''; e.target.dataset.changed='1'; }});
+  apiField.addEventListener('focus', e=>{
+    if (e.target.value===MASK){
+      e.target.value='';
+      e.target.dataset.wasMasked='1';
+    }
+  });
+  apiField.addEventListener('blur', e=>{
+    if (e.target.dataset.wasMasked==='1' && e.target.dataset.changed !== '1'){
+      e.target.value = MASK;
+    }
+    delete e.target.dataset.wasMasked;
+  });
   apiField.addEventListener('input', e=>{ e.target.dataset.changed='1'; });
 }
 const mpField = qsMaster();
 if (mpField){
-  mpField.addEventListener('focus', e=>{ if (e.target.value===MASK){ e.target.value=''; e.target.dataset.changed='1'; }});
+  mpField.addEventListener('focus', e=>{
+    if (e.target.value===MASK){
+      e.target.value='';
+      e.target.dataset.wasMasked='1';
+    }
+    if (e.target.dataset.raw){ e.target.value = e.target.dataset.raw; }
+  });
+  mpField.addEventListener('blur', e=>{
+    if (e.target.dataset.changed==='1'){
+      e.target.dataset.raw = e.target.value;
+      if (e.target.value) e.target.value = MASK;
+    } else if (e.target.dataset.wasMasked==='1'){
+      e.target.value = MASK;
+    }
+    delete e.target.dataset.wasMasked;
+  });
+  mpField.addEventListener('keydown', e=>{
+    if ((e.key === 'Backspace' || e.key === 'Delete') && e.target.dataset.wasMasked==='1'){
+      e.target.dataset.changed='1';
+    }
+  });
   mpField.addEventListener('input', e=>{ e.target.dataset.changed='1'; });
 }
 

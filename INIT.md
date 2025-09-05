@@ -8,7 +8,7 @@
 - 极轻量：体积预算 HTML<10KB / CSS<8KB / JS<25KB（未压缩）
 - 零依赖：Vanilla HTML/CSS/ES Modules
 - 即开即用：静态托管可运行
-- 安全最小：本地配置 + 可选主密码加密，不存储原文
+- 安全最小：本地配置 + 主密码加密（可留空使用默认密钥），不存储原文
 - 流式体验：SSE 快速反馈，可取消
 
 ---
@@ -110,7 +110,7 @@ Out（首阶段不做）：术语表/不翻译词、批量并发翻译、历史�
 
 ---
 ## 7. 配置键（localStorage）
-`AI_TR_CFG_V1` : JSON 序列化 `AppConfig`（包含：apiType, baseUrl, apiKeyEnc, masterPasswordEnc(可选), model, targetLanguage, promptTemplate, stream, temperature, maxTokens, timeoutMs, retries, useMasterPassword, storeResponses）
+`AI_TR_CFG_V1` : JSON 序列化 `AppConfig`（包含：apiType, baseUrl, apiKeyEnc, masterPasswordEnc(可选), model, targetLanguage, promptTemplate, stream, temperature, maxTokens, timeoutMs, retries, storeResponses）
 `AI_TR_ENC_META_V1` : 加密所需 salt 与 nonce（不含主密码）
 `AI_TR_SESSION` : 会话与 response 追踪（previousResponseId, storedResponseIds[]）
 

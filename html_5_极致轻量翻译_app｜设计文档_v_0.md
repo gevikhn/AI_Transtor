@@ -24,7 +24,7 @@
 **必选项**
 1. API 类型：`OpenAI 兼容` / `Claude (Anthropic)`（单选切换）
 2. Base URL：如 `https://api.openai.com/v1` 或自建兼容端点
-3. API Key：明/暗文切换显示；可选“主密码加密”存储
+3. API Key：明/暗文切换显示；输入主密码后自动加密存储
 4. 模型名称：输入框（示例提示）
 5. 默认目标语言：下拉（中文、英文、日语、韩语、德语、法语…）
 6. Prompt 模板编辑器：多行文本（默认内置模板，见 §8）
@@ -103,7 +103,7 @@ interface AppConfig {
   temperature?: number;    
   maxTokens?: number;
   timeoutMs?: number;      // 默认 30_000
-  useMasterPassword?: boolean; // 是否启用本地加密
+  masterPasswordEnc?: string; // 主密码密文，存在则使用该主密码加密
   // Responses“会话”相关
   storeResponses?: boolean;    // 是否在平台侧存储（传 store:true）
 }
@@ -132,7 +132,7 @@ interface AppConfig {
   temperature?: number;    
   maxTokens?: number;
   timeoutMs?: number;      // 默认 30_000
-  useMasterPassword?: boolean; // 是否启用本地加密
+  masterPasswordEnc?: string; // 主密码密文，存在则使用该主密码加密
 }
 
 // 运行时请求
@@ -266,7 +266,7 @@ sequenceDiagram
 ## 10. UI 草图（低保真）
 **设置页**
 - [API 类型 单选] [Base URL 文本框]
-- [API Key 密文输入 + 显示切换] [主密码加密开关]
+- [API Key 密文输入 + 显示切换]
 - [模型名称 输入框]
 - [默认目标语言 下拉]
 - [流式输出 开关] [温度/MaxTokens]
