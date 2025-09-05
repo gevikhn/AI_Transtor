@@ -1,6 +1,6 @@
 {
-  "name": "AI Transtor",
-  "short_name": "Transtor",
+  "name": "AI Translator",
+  "short_name": "Translator",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#ffffff",
