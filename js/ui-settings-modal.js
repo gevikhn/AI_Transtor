@@ -149,6 +149,18 @@ form.addEventListener('submit', async e=>{
       svc.apiKeyEnc = prevSvc.apiKeyEnc;
     }
   }
+  if (masterChanged){
+    for (const s of (cfg.services||[])){
+      if (s.id === svc.id || !s.apiKeyEnc) continue;
+      try {
+        const raw = await decryptApiKey(s.apiKeyEnc, oldMasterPlain, s.id);
+        s.apiKeyEnc = await encryptApiKey(raw, newMasterPlain, s.id);
+      } catch {
+        statusEl.textContent='主密码重加密失败';
+        return;
+      }
+    }
+  }
   if (mp && masterChanged){
     if (newMasterPlain){
       try { next.masterPasswordEnc = await encryptMasterPassword(newMasterPlain); }
