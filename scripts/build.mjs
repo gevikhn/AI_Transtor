@@ -43,7 +43,7 @@ function copyDir(srcDir, destDir){
 }
 
 function copyStatics(){
-  const staticFiles = ['index.html','settings.html','default.prompt','README.md'];
+  const staticFiles = ['index.html', 'default.prompt','README.md'];
   for (const f of staticFiles){ const src = path.join(root, f); if (fs.existsSync(src)) copyFile(src, path.join(distDir, f)); }
   copyDir(path.join(root,'assets'), path.join(distDir,'assets'));
   copyDir(path.join(root,'css'), path.join(distDir,'css'));
@@ -74,7 +74,7 @@ async function run({ watch=false }={}){
     entryPoints: [
       path.join(root,'js','ui-translate.js'),
       path.join(root,'js','ui-settings-modal.js'),
-      path.join(root,'js','ui-settings.js'),
+      // path.join(root,'js','ui-settings.js'),
       path.join(root,'js','api.js'),
       path.join(root,'js','config.js'),
       path.join(root,'js','prompt.js'),
@@ -96,7 +96,7 @@ async function run({ watch=false }={}){
     console.log('[watch] build completed. Watching for changes...');
     // 重新实现简单监听（可改用 esbuild context.watch）
     const debounce = (fn, ms)=>{ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
-    const toWatch = ['js','css','index.html','settings.html','default.prompt'];
+    const toWatch = ['js','css','index.html', 'default.prompt'];
     const watcher = fs.watch(root,{ recursive:true }, debounce((evt, filename)=>{
       if (!filename) return; if (!toWatch.some(p=> filename.startsWith(p))) return;
       console.log('[watch] change detected:', filename);
