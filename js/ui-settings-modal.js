@@ -86,7 +86,8 @@ form.addEventListener('submit', async e=>{
   e.preventDefault();
   const cfg = loadConfig();
   const next = { ...cfg };
-  const svc = getActiveService(cfg);
+  next.services = undefined;
+  const svc = { ...getActiveService(cfg) };
   // 更新服务名
   if (svcName && svcName.value.trim()){ svc.name = svcName.value.trim(); }
   // 回写表单字段（禁止将明文 apiKey 写入配置）
@@ -149,17 +150,24 @@ form.addEventListener('submit', async e=>{
       svc.apiKeyEnc = prevSvc.apiKeyEnc;
     }
   }
+  let otherServices = (cfg.services || []).map(s => ({ ...s }));
   if (masterChanged){
-    for (const s of (cfg.services||[])){
-      if (s.id === svc.id || !s.apiKeyEnc) continue;
+    const reencServices = [];
+    for (const s of otherServices){
+      if (s.id === svc.id || !s.apiKeyEnc){
+        reencServices.push(s);
+        continue;
+      }
       try {
         const raw = await decryptApiKey(s.apiKeyEnc, oldMasterPlain, s.id);
-        s.apiKeyEnc = await encryptApiKey(raw, newMasterPlain, s.id);
+        const enc = await encryptApiKey(raw, newMasterPlain, s.id);
+        reencServices.push({ ...s, apiKeyEnc: enc });
       } catch {
         statusEl.textContent='主密码重加密失败';
         return;
       }
     }
+    otherServices = reencServices;
   }
   if (mp && masterChanged){
     if (newMasterPlain){
@@ -173,7 +181,7 @@ form.addEventListener('submit', async e=>{
   const errs = validateConfig(next);
   if (errs.length){ statusEl.textContent = errs.join(' / '); return; }
   // 写回服务数组（替换当前 active 项）
-  next.services = (next.services||cfg.services||[]).map(s=> s.id===svc.id ? { ...s, ...svc } : s);
+  next.services = otherServices.map(s=> s.id===svc.id ? { ...s, ...svc } : s);
   saveConfig(next);
   if (apiInput){
     apiInput.dataset.changed='0';
