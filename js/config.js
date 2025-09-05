@@ -240,7 +240,7 @@ export function validateConfig(cfg){
 }
 
 // ===== API Key 加密（受全局主密码控制） =====
-export async function encryptApiKey(key, masterPassword, serviceId){
+export async function encryptApiKey(key, masterPassword, serviceId, opts={}){
   const enc = new TextEncoder();
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const nonce = crypto.getRandomValues(new Uint8Array(12));
@@ -250,9 +250,13 @@ export async function encryptApiKey(key, masterPassword, serviceId){
   const payloadObj = { v:1, key, chk: hash.slice(0,10) };
   const cipher = await crypto.subtle.encrypt({ name:'AES-GCM', iv: nonce }, k, enc.encode(JSON.stringify(payloadObj)));
   const metaKey = serviceId ? serviceMetaKey(serviceId) : ENC_META_KEY; // 兼容旧调用
-  localStorage.setItem(metaKey, JSON.stringify({ salt: Array.from(salt), nonce: Array.from(nonce) }));
+  const meta = { salt: Array.from(salt), nonce: Array.from(nonce) };
+  if (!opts.skipStore){
+    localStorage.setItem(metaKey, JSON.stringify(meta));
+  }
   const bin = new Uint8Array(cipher);
-  return btoa(String.fromCharCode(...bin));
+  const encStr = btoa(String.fromCharCode(...bin));
+  return opts.returnMeta ? { enc: encStr, meta, metaKey } : encStr;
 }
 
 export async function decryptApiKey(encValue, masterPassword, serviceId){
@@ -293,7 +297,7 @@ async function deriveStaticKey(salt){
   return deriveKey(mixPassword(''), salt);
 }
 
-export async function encryptMasterPassword(mp){
+export async function encryptMasterPassword(mp, opts={}){
   const enc = new TextEncoder();
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const nonce = crypto.getRandomValues(new Uint8Array(12));
@@ -301,9 +305,13 @@ export async function encryptMasterPassword(mp){
   const hash = await sha256Hex(mp);
   const payload = JSON.stringify({ v:1, mp, chk: hash.slice(0,8) });
   const cipher = await crypto.subtle.encrypt({ name:'AES-GCM', iv: nonce }, k, enc.encode(payload));
-  localStorage.setItem(MP_META_KEY, JSON.stringify({ salt: Array.from(salt), nonce: Array.from(nonce) }));
+  const meta = { salt: Array.from(salt), nonce: Array.from(nonce) };
+  if (!opts.skipStore){
+    localStorage.setItem(MP_META_KEY, JSON.stringify(meta));
+  }
   cachedMasterPassword = mp;
-  return btoa(String.fromCharCode(...new Uint8Array(cipher)));
+  const encStr = btoa(String.fromCharCode(...new Uint8Array(cipher)));
+  return opts.returnMeta ? { enc: encStr, meta } : encStr;
 }
 
 export async function decryptMasterPassword(enc){

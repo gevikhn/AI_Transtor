@@ -111,6 +111,8 @@ form.addEventListener('submit', async e=>{
   let masterChanged = false;
   let newMasterPlain = '';
   let oldMasterPlain = '';
+  const stagedMetas = [];
+  let stagedMasterMeta;
   if (mp){
     if (mp.dataset.changed==='1'){
       const rawVal = mp.dataset.raw != null ? mp.dataset.raw : (mp.value===MASK ? '' : mp.value);
@@ -135,13 +137,18 @@ form.addEventListener('submit', async e=>{
   if (apiInput){
     if (apiInput.dataset.changed==='1'){
       const raw = apiInput.value.trim();
-      try { svc.apiKeyEnc = await encryptApiKey(raw, newMasterPlain, svc.id); }
-      catch(e){ statusEl.textContent='加密失败: '+e.message; return; }
+      try {
+        const { enc, meta, metaKey } = await encryptApiKey(raw, newMasterPlain, svc.id, { returnMeta: true, skipStore: true });
+        svc.apiKeyEnc = enc;
+        stagedMetas.push({ metaKey, meta });
+      } catch(e){ statusEl.textContent='加密失败: '+e.message; return; }
       unlockedPlainKey = raw;
     } else if (masterChanged && svc.apiKeyEnc){
       try {
         const raw = await decryptApiKey(svc.apiKeyEnc, oldMasterPlain, svc.id);
-        svc.apiKeyEnc = await encryptApiKey(raw, newMasterPlain, svc.id);
+        const { enc, meta, metaKey } = await encryptApiKey(raw, newMasterPlain, svc.id, { returnMeta: true, skipStore: true });
+        svc.apiKeyEnc = enc;
+        stagedMetas.push({ metaKey, meta });
         unlockedPlainKey = raw;
       } catch { statusEl.textContent='主密码重加密失败'; return; }
     } else {
@@ -159,8 +166,9 @@ form.addEventListener('submit', async e=>{
       }
       try {
         const raw = await decryptApiKey(s.apiKeyEnc, oldMasterPlain, s.id);
-        const enc = await encryptApiKey(raw, newMasterPlain, s.id);
+        const { enc, meta, metaKey } = await encryptApiKey(raw, newMasterPlain, s.id, { returnMeta: true, skipStore: true });
         reencServices.push({ ...s, apiKeyEnc: enc });
+        stagedMetas.push({ metaKey, meta });
       } catch {
         statusEl.textContent='主密码重加密失败';
         return;
@@ -170,18 +178,31 @@ form.addEventListener('submit', async e=>{
   }
   if (mp && masterChanged){
     if (newMasterPlain){
-      try { next.masterPasswordEnc = await encryptMasterPassword(newMasterPlain); }
+      try {
+        const { enc, meta } = await encryptMasterPassword(newMasterPlain, { returnMeta: true, skipStore: true });
+        next.masterPasswordEnc = enc;
+        stagedMasterMeta = meta;
+      }
       catch(e){ statusEl.textContent='主密码加密失败: '+e.message; return; }
     } else {
       next.masterPasswordEnc = '';
-      try { localStorage.removeItem(MP_META_KEY); } catch { /* ignore */ }
+      stagedMasterMeta = null;
     }
   }
   // 写回服务数组（替换当前 active 项）并验证配置
   next.services = otherServices.map(s=> s.id===svc.id ? { ...s, ...svc } : s);
   const errs = validateConfig(next);
   if (errs.length){ statusEl.textContent = errs.join(' / '); return; }
-  saveConfig(next);
+  try {
+    saveConfig(next);
+    for (const { metaKey, meta } of stagedMetas){
+      localStorage.setItem(metaKey, JSON.stringify(meta));
+    }
+    if (mp && masterChanged){
+      if (next.masterPasswordEnc){ localStorage.setItem(MP_META_KEY, JSON.stringify(stagedMasterMeta)); }
+      else { localStorage.removeItem(MP_META_KEY); }
+    }
+  } catch(e){ statusEl.textContent='保存失败: '+e.message; return; }
   if (apiInput){
     apiInput.dataset.changed='0';
     if (svc.apiKeyEnc) apiInput.value = MASK;
