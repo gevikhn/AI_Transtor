@@ -86,7 +86,6 @@ form.addEventListener('submit', async e=>{
   e.preventDefault();
   const cfg = loadConfig();
   const next = { ...cfg };
-  next.services = undefined;
   const svc = { ...getActiveService(cfg) };
   // 更新服务名
   if (svcName && svcName.value.trim()){ svc.name = svcName.value.trim(); }
@@ -178,10 +177,10 @@ form.addEventListener('submit', async e=>{
       try { localStorage.removeItem(MP_META_KEY); } catch { /* ignore */ }
     }
   }
+  // 写回服务数组（替换当前 active 项）并验证配置
+  next.services = otherServices.map(s=> s.id===svc.id ? { ...s, ...svc } : s);
   const errs = validateConfig(next);
   if (errs.length){ statusEl.textContent = errs.join(' / '); return; }
-  // 写回服务数组（替换当前 active 项）
-  next.services = otherServices.map(s=> s.id===svc.id ? { ...s, ...svc } : s);
   saveConfig(next);
   if (apiInput){
     apiInput.dataset.changed='0';
@@ -285,6 +284,9 @@ if (mpField){
     if (e.target.dataset.raw){ e.target.value = e.target.dataset.raw; }
   });
   mpField.addEventListener('blur', e=>{
+    if (e.target.dataset.wasMasked==='1' && !e.target.value && e.target.dataset.changed !== '1'){
+      e.target.dataset.changed = '1';
+    }
     if (e.target.dataset.changed==='1'){
       e.target.dataset.raw = e.target.value;
       if (e.target.value) e.target.value = MASK;
