@@ -1,5 +1,5 @@
 // ui-settings.js - 设置页逻辑 (v0.1 仅基础保存/加载 + 连通性占位)
-import { loadConfig, saveConfig, validateConfig, exportConfig, importConfig, DEFAULT_PROMPT_TEMPLATE, encryptApiKey, encryptMasterPassword, decryptMasterPassword, getActiveService, getActiveConfig, getApiKeyAuto } from './config.js';
+import { loadConfig, saveConfig, validateConfig, exportConfig, importConfig, DEFAULT_PROMPT_TEMPLATE, encryptApiKey, encryptMasterPassword, decryptMasterPassword, decryptApiKey, getActiveService, getActiveConfig, getApiKeyAuto } from './config.js';
 
 const form = document.getElementById('settingsForm');
 const statusEl = document.getElementById('settingsStatus');
@@ -54,26 +54,35 @@ form.addEventListener('submit', async e=>{
   ['timeoutMs','retries'].forEach(k=>{ if (next[k] !== undefined && next[k] !== '') next[k] = Number(next[k]); });
   if (svc.temperature!==undefined && svc.temperature!=='') svc.temperature = Number(svc.temperature); else svc.temperature = 0;
   if (svc.maxTokens!==undefined && svc.maxTokens!=='') svc.maxTokens = Number(svc.maxTokens); else svc.maxTokens = undefined;
-    // 主密码自动加密
+  // 主密码自动加密
   const mp = document.getElementById('masterPassword');
   const apiInput = form.querySelector('[data-field=apiKey]') || form.querySelector('[data-field=apiKeyEnc]');
-  if (mp && (mp.value || cfg.masterPasswordEnc) && apiInput && apiInput.dataset.changed==='1'){
+  if (mp && apiInput && (apiInput.dataset.changed==='1' || mp.dataset.changed==='1' || cfg.masterPasswordEnc)){
     try {
-      const mpPlain = mp.value ? mp.value.trim() : await decryptMasterPassword(cfg.masterPasswordEnc);
-      const rawKey = apiInput.dataset.changed === '1' ? apiInput.value.trim() : svc.apiKeyEnc;
-      svc.apiKeyEnc = rawKey ? await encryptApiKey(rawKey, mpPlain, svc.id) : '';
-      next.masterPasswordEnc = await encryptMasterPassword(mpPlain);
+      const apiChanged = apiInput.dataset.changed === '1';
+      const mpChanged = mp.dataset.changed === '1';
+      const oldMp = cfg.masterPasswordEnc ? await decryptMasterPassword(cfg.masterPasswordEnc) : '';
+      let mpPlain = mpChanged ? mp.value.trim() : oldMp;
+      if (apiChanged){
+        const rawKey = apiInput.value.trim();
+        svc.apiKeyEnc = rawKey ? await encryptApiKey(rawKey, mpPlain, svc.id) : '';
+      } else if (mpChanged){
+        const rawKey = cfg.masterPasswordEnc ? await decryptApiKey(svc.apiKeyEnc, oldMp, svc.id) : svc.apiKeyEnc;
+        svc.apiKeyEnc = rawKey ? await encryptApiKey(rawKey, mpPlain, svc.id) : '';
+      }
+      next.masterPasswordEnc = mpPlain ? await encryptMasterPassword(mpPlain) : '';
     }
     catch(e){ statusEl.textContent='加密失败: '+e.message; return; }
   } else {
     next.masterPasswordEnc = cfg.masterPasswordEnc || '';
   }
-    next.useMasterPassword = !!next.masterPasswordEnc;
+  next.useMasterPassword = !!next.masterPasswordEnc;
     const errs = validateConfig(next);
   if (errs.length){ statusEl.textContent = errs.join(' / '); return; }
   next.services = (next.services||cfg.services||[]).map(s=> s.id===svc.id ? { ...s, ...svc } : s);
   saveConfig(next);
   if (apiInput) apiInput.dataset.changed='0';
+  if (mp) mp.dataset.changed='0';
   statusEl.textContent = '已保存';
 });
 
@@ -101,4 +110,5 @@ btnNewSession.addEventListener('click', ()=>{ statusEl.textContent='(未来版�
 btnDeleteSession.addEventListener('click', ()=>{ statusEl.textContent='(未来版本删除会话)'; });
 
 form.querySelector('[data-field=apiKey]')?.addEventListener('input', e=>{ e.target.dataset.changed='1'; });
+document.getElementById('masterPassword')?.addEventListener('input', e=>{ e.target.dataset.changed='1'; });
 loadIntoForm();
