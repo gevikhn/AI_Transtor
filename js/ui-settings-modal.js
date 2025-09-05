@@ -113,7 +113,7 @@ form.addEventListener('submit', async e=>{
   if (mp){
     if (mp.dataset.changed==='1'){
       masterChanged = true;
-      const rawVal = mp.dataset.raw != null ? mp.dataset.raw : (mp.value===MASK ? '' : mp.value);
+      const rawVal = mp.dataset.raw !== undefined ? mp.dataset.raw : (mp.value===MASK ? '' : mp.value);
       newMasterPlain = rawVal.trim();
       if (newMasterPlain){
         try { next.masterPasswordEnc = await encryptMasterPassword(newMasterPlain); }
