@@ -93,6 +93,20 @@ async function run({ watch=false }={}){
     chunkNames: 'chunks/[name]-[hash]',
     banner: { js: '// Built by build.mjs' }
   }).catch(e=>{ console.error(e); process.exit(1); });
+
+  // generate chunk manifest for service worker precache
+  try {
+    const chunksDir = path.join(distDir, 'js', 'chunks');
+    if (fs.existsSync(chunksDir)) {
+      const files = fs.readdirSync(chunksDir)
+        .filter(f => f.endsWith('.js'))
+        .map(f => `./js/chunks/${f}`);
+      const manifestPath = path.join(distDir, 'js', 'chunk-manifest.json');
+      fs.writeFileSync(manifestPath, JSON.stringify(files, null, 2));
+    }
+  } catch (e) {
+    console.warn('chunk manifest generation failed', e);
+  }
   if (watch){
     console.log('[watch] build completed. Watching for changes...');
     // 重新实现简单监听（可改用 esbuild context.watch）
