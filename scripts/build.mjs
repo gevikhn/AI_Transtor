@@ -111,7 +111,7 @@ async function run({ watch=false }={}){
     console.log('[watch] build completed. Watching for changes...');
     // 重新实现简单监听（可改用 esbuild context.watch）
     const debounce = (fn, ms)=>{ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
-    const toWatch = ['js','css','index.html', 'default.prompt'];
+    const toWatch = ['js','css','index.html', 'default.prompt', 'sw.js', 'manifest.webmanifest'];
     const watcher = fs.watch(root,{ recursive:true }, debounce((evt, filename)=>{
       if (!filename) return; if (!toWatch.some(p=> filename.startsWith(p))) return;
       console.log('[watch] change detected:', filename);
