@@ -6,6 +6,7 @@ const CORE_ASSETS = [
   './js/ui-settings-modal.js',
   './js/pwa.js',
   './manifest.webmanifest',
+  './default.prompt',
   './favicon.ico'
 ];
 
