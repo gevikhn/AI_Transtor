@@ -237,21 +237,37 @@ btnDeleteSession.addEventListener('click', ()=>{ statusEl.textContent='(未来: 
 // 监听 API Key 输入变更标记
 const apiField = form.querySelector('[data-field=apiKey]');
 if (apiField){
-  apiField.addEventListener('focus', e=>{ if (e.target.value===MASK){ e.target.value=''; e.target.dataset.changed='1'; }});
+  apiField.addEventListener('focus', e=>{
+    if (e.target.value===MASK){
+      e.target.value='';
+      e.target.dataset.wasMasked='1';
+    }
+  });
+  apiField.addEventListener('blur', e=>{
+    if (e.target.dataset.wasMasked==='1' && e.target.dataset.changed !== '1'){
+      e.target.value = MASK;
+    }
+    delete e.target.dataset.wasMasked;
+  });
   apiField.addEventListener('input', e=>{ e.target.dataset.changed='1'; });
 }
 const mpField = qsMaster();
 if (mpField){
   mpField.addEventListener('focus', e=>{
-    if (e.target.value===MASK){ e.target.value=''; }
+    if (e.target.value===MASK){
+      e.target.value='';
+      e.target.dataset.wasMasked='1';
+    }
     if (e.target.dataset.raw){ e.target.value = e.target.dataset.raw; }
-    e.target.dataset.changed='1';
   });
   mpField.addEventListener('blur', e=>{
     if (e.target.dataset.changed==='1'){
       e.target.dataset.raw = e.target.value;
       if (e.target.value) e.target.value = MASK;
+    } else if (e.target.dataset.wasMasked==='1'){
+      e.target.value = MASK;
     }
+    delete e.target.dataset.wasMasked;
   });
   mpField.addEventListener('input', e=>{ e.target.dataset.changed='1'; });
 }
