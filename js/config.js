@@ -26,7 +26,6 @@ fetch('./default.prompt')
 const defaultConfig = {
   // 全局
   masterPasswordEnc: '',
-  useMasterPassword: false,
   targetLanguage: 'zh-CN',
   promptTemplate: DEFAULT_PROMPT_TEMPLATE,
   stream: true,
@@ -168,6 +167,7 @@ export function loadConfig(){
       delete data.masterPassword;
     }
     if (data.masterPassword) delete data.masterPassword;
+    if ('useMasterPassword' in data) delete data.useMasterPassword;
     // 清理潜在明文 apiKey（根级与服务级）
     if ('apiKey' in data) delete data.apiKey;
     if (Array.isArray(data.services)) data.services = data.services.map(s=>{ const o={...s}; if ('apiKey' in o) delete o.apiKey; return o; });
@@ -194,6 +194,7 @@ export function saveConfig(cfg){
   clean.services = normalizeServices(clean.services);
   if (!clean.activeServiceId) clean.activeServiceId = clean.services[0].id;
   if ('masterPassword' in clean) delete clean.masterPassword;
+  if ('useMasterPassword' in clean) delete clean.useMasterPassword;
   // 确保不落盘任意明文字段 apiKey
   if ('apiKey' in clean) delete clean.apiKey;
   clean.services = clean.services.map(s=>{ const o={...s}; if ('apiKey' in o) delete o.apiKey; return o; });
@@ -322,7 +323,7 @@ export async function decryptMasterPassword(enc){
 
 export async function getMasterPasswordPlain(){
   const cfg = loadConfig();
-  if (!cfg.useMasterPassword) return '';
+  if (!cfg.masterPasswordEnc) return '';
   return await decryptMasterPassword(cfg.masterPasswordEnc);
 }
 
@@ -330,7 +331,7 @@ export async function getApiKey(masterPassword){
   const cfg = loadConfig();
   const svc = getActiveService(cfg);
   if (!svc.apiKeyEnc) return '';
-  const mp = cfg.useMasterPassword ? masterPassword : '';
+  const mp = cfg.masterPasswordEnc ? masterPassword : '';
   return await decryptApiKey(svc.apiKeyEnc, mp, svc.id);
 }
 
@@ -339,7 +340,7 @@ export async function getApiKeyAuto(){
   const svc = getActiveService(cfg);
   if (!svc.apiKeyEnc) return '';
   let mp = '';
-  if (cfg.useMasterPassword){
+  if (cfg.masterPasswordEnc){
     try { mp = await getMasterPasswordPlain(); }
     catch(e){ if (Date.now() - (window.__AI_TR_LAST_PW_ALERT||0) > 2000){ alert('主密码读取失败，请重新输入并保存'); window.__AI_TR_LAST_PW_ALERT = Date.now(); } throw e; }
   }
