@@ -14,8 +14,9 @@
 - 设置模态化、掩码显示、基础校验
 - 构建时注入版本号 + 构建时间（UTC+8 计算后输出，不含 “UTC+8” 文本，避免多余字符）
 - CSP 无 inline 脚本（所有脚本均外部文件；移除临时 build-info 内联/外链脚本）
+- PWA 支持（manifest + service worker 缓存）
 
-待办（v0.5+）：responses 列表与清理、Threat Model 文档、主密码 session-only 选项与强度提示、PWA (manifest / service worker)、测试与体积守护脚本。
+待办（v0.5+）：responses 列表与清理、Threat Model 文档、主密码 session-only 选项与强度提示、测试与体积守护脚本。
 
 ## 快速开始
 1. 克隆或下载本仓库，使用任何静态服务器访问 `index.html`（避免 file:// 造成的跨域限制）。
@@ -73,7 +74,7 @@ npm run clean
 ## Roadmap 摘要
 - v0.4 安全基础（已完成核心）
 - v0.5 responses 管理 / Threat Model / session-only 主密码
-- v0.6 PWA (manifest + sw) & 移动适配
+- v0.6 移动适配
 - v0.7 测试与性能基线
 
 详细任务进度及 Changelog 参见 `INIT.md`。

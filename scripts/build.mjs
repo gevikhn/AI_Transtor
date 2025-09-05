@@ -43,7 +43,7 @@ function copyDir(srcDir, destDir){
 }
 
 function copyStatics(){
-  const staticFiles = ['index.html', 'default.prompt','README.md',"favicon.ico"];
+  const staticFiles = ['index.html', 'default.prompt','README.md',"favicon.ico",'manifest.webmanifest','sw.js'];
   for (const f of staticFiles){ const src = path.join(root, f); if (fs.existsSync(src)) copyFile(src, path.join(distDir, f)); }
   copyDir(path.join(root,'assets'), path.join(distDir,'assets'));
   copyDir(path.join(root,'css'), path.join(distDir,'css'));
@@ -79,7 +79,8 @@ async function run({ watch=false }={}){
       path.join(root,'js','config.js'),
       path.join(root,'js','prompt.js'),
       path.join(root,'js','session.js'),
-      path.join(root,'js','utils.js')
+      path.join(root,'js','utils.js'),
+      path.join(root,'js','pwa.js')
     ],
     bundle: true,
     format: 'esm',
@@ -92,11 +93,25 @@ async function run({ watch=false }={}){
     chunkNames: 'chunks/[name]-[hash]',
     banner: { js: '// Built by build.mjs' }
   }).catch(e=>{ console.error(e); process.exit(1); });
+
+  // generate chunk manifest for service worker precache
+  try {
+    const chunksDir = path.join(distDir, 'js', 'chunks');
+    if (fs.existsSync(chunksDir)) {
+      const files = fs.readdirSync(chunksDir)
+        .filter(f => f.endsWith('.js'))
+        .map(f => `./js/chunks/${f}`);
+      const manifestPath = path.join(distDir, 'js', 'chunk-manifest.json');
+      fs.writeFileSync(manifestPath, JSON.stringify(files, null, 2));
+    }
+  } catch (e) {
+    console.warn('chunk manifest generation failed', e);
+  }
   if (watch){
     console.log('[watch] build completed. Watching for changes...');
     // 重新实现简单监听（可改用 esbuild context.watch）
     const debounce = (fn, ms)=>{ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
-    const toWatch = ['js','css','index.html', 'default.prompt'];
+    const toWatch = ['js','css','index.html', 'default.prompt', 'sw.js', 'manifest.webmanifest'];
     const watcher = fs.watch(root,{ recursive:true }, debounce((evt, filename)=>{
       if (!filename) return; if (!toWatch.some(p=> filename.startsWith(p))) return;
       console.log('[watch] change detected:', filename);
