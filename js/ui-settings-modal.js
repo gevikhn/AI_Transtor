@@ -193,16 +193,41 @@ form.addEventListener('submit', async e=>{
   next.services = otherServices.map(s=> s.id===svc.id ? { ...s, ...svc } : s);
   const errs = validateConfig(next);
   if (errs.length){ statusEl.textContent = errs.join(' / '); return; }
+  const prevCfgRaw = localStorage.getItem('AI_TR_CFG_V1');
+  const prevMetaVals = {};
+  const writtenMetaKeys = [];
+  let prevMasterMeta;
+  let masterMetaWritten = false;
   try {
-    saveConfig(next);
     for (const { metaKey, meta } of stagedMetas){
+      prevMetaVals[metaKey] = localStorage.getItem(metaKey);
       localStorage.setItem(metaKey, JSON.stringify(meta));
+      writtenMetaKeys.push(metaKey);
     }
     if (mp && masterChanged){
-      if (next.masterPasswordEnc){ localStorage.setItem(MP_META_KEY, JSON.stringify(stagedMasterMeta)); }
-      else { localStorage.removeItem(MP_META_KEY); }
+      prevMasterMeta = localStorage.getItem(MP_META_KEY);
+      if (next.masterPasswordEnc){
+        localStorage.setItem(MP_META_KEY, JSON.stringify(stagedMasterMeta));
+      } else {
+        localStorage.removeItem(MP_META_KEY);
+      }
+      masterMetaWritten = true;
     }
-  } catch(e){ statusEl.textContent='保存失败: '+e.message; return; }
+    saveConfig(next);
+  } catch(e){
+    for (const key of writtenMetaKeys){
+      const prev = prevMetaVals[key];
+      if (prev === null || prev === undefined) localStorage.removeItem(key);
+      else localStorage.setItem(key, prev);
+    }
+    if (mp && masterChanged && masterMetaWritten){
+      if (prevMasterMeta === null || prevMasterMeta === undefined) localStorage.removeItem(MP_META_KEY);
+      else localStorage.setItem(MP_META_KEY, prevMasterMeta);
+    }
+    if (prevCfgRaw === null) localStorage.removeItem('AI_TR_CFG_V1');
+    else localStorage.setItem('AI_TR_CFG_V1', prevCfgRaw);
+    statusEl.textContent='保存失败: '+e.message; return;
+  }
   if (apiInput){
     apiInput.dataset.changed='0';
     if (svc.apiKeyEnc) apiInput.value = MASK;
