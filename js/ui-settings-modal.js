@@ -284,9 +284,6 @@ if (mpField){
     if (e.target.dataset.raw){ e.target.value = e.target.dataset.raw; }
   });
   mpField.addEventListener('blur', e=>{
-    if (e.target.dataset.wasMasked==='1' && !e.target.value && e.target.dataset.changed !== '1'){
-      e.target.dataset.changed = '1';
-    }
     if (e.target.dataset.changed==='1'){
       e.target.dataset.raw = e.target.value;
       if (e.target.value) e.target.value = MASK;
@@ -294,6 +291,11 @@ if (mpField){
       e.target.value = MASK;
     }
     delete e.target.dataset.wasMasked;
+  });
+  mpField.addEventListener('keydown', e=>{
+    if ((e.key === 'Backspace' || e.key === 'Delete') && e.target.dataset.wasMasked==='1'){
+      e.target.dataset.changed='1';
+    }
   });
   mpField.addEventListener('input', e=>{ e.target.dataset.changed='1'; });
 }
