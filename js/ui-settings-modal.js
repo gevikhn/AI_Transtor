@@ -113,12 +113,16 @@ form.addEventListener('submit', async e=>{
   let oldMasterPlain = '';
   if (mp){
     if (mp.dataset.changed==='1'){
-      masterChanged = true;
       const rawVal = mp.dataset.raw != null ? mp.dataset.raw : (mp.value===MASK ? '' : mp.value);
       newMasterPlain = rawVal.trim();
       if (cfg.masterPasswordEnc){
         try { oldMasterPlain = await decryptMasterPassword(cfg.masterPasswordEnc); }
         catch { oldMasterPlain = ''; }
+      }
+      if (newMasterPlain === oldMasterPlain){
+        next.masterPasswordEnc = cfg.masterPasswordEnc;
+      } else {
+        masterChanged = true;
       }
     } else {
       next.masterPasswordEnc = cfg.masterPasswordEnc;
