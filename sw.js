@@ -37,22 +37,24 @@ self.addEventListener('activate', event => {
 
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET' || !event.request.url.startsWith(self.location.origin)) return;
-  event.respondWith(
-    caches.match(event.request).then(resp => {
-      if (resp) return resp;
-      return fetch(event.request).then(r => {
-        const copy = r.clone();
-        event.waitUntil(
-          caches.open(CACHE_NAME)
-            .then(cache => cache.put(event.request, copy))
-            .catch(() => {})
-        );
-        return r;
-      });
-    }).catch(() => {
+  event.respondWith((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    try {
+      const response = await fetch(event.request);
+      event.waitUntil((async () => {
+        try {
+          await cache.put(event.request, response.clone());
+        } catch (e) {
+          // ignore caching errors
+        }
+      })());
+      return response;
+    } catch {
+      const cached = await cache.match(event.request);
+      if (cached) return cached;
       if (event.request.mode === 'navigate') {
-        return caches.match('./index.html');
+        return cache.match('./index.html');
       }
-    })
-  );
+    }
+  })());
 });
