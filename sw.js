@@ -40,10 +40,13 @@ self.addEventListener('fetch', event => {
   event.respondWith(
     caches.match(event.request).then(resp => {
       if (resp) return resp;
-      return fetch(event.request).then(async r => {
+      return fetch(event.request).then(r => {
         const copy = r.clone();
-        const cache = await caches.open(CACHE_NAME);
-        await cache.put(event.request, copy);
+        event.waitUntil(
+          caches.open(CACHE_NAME)
+            .then(cache => cache.put(event.request, copy))
+            .catch(() => {})
+        );
         return r;
       });
     }).catch(() => {
