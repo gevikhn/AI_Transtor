@@ -294,7 +294,7 @@ async function runImport(getImported, cleanup){
   const prevMpMeta = localStorage.getItem(MP_META_KEY);
   let imported;
   try { imported = await getImported(); }
-  catch(e){ statusEl.textContent='导入失败: 数据读取错误'; if (cleanup) cleanup(); return; }
+  catch(e){ statusEl.textContent='导入失败: ' + (e.message||'数据读取错误'); if (cleanup) cleanup(); return; }
   try {
     await applyImported(imported, prevCfgRaw, prevApiMeta, prevMpMeta);
     statusEl.textContent='导入成功';
@@ -311,9 +311,12 @@ importFile.addEventListener('change', async()=>{
 });
 
 btnImportUrl.addEventListener('click', async()=>{
-  const url = prompt('请输入配置 URL');
-  if (!url) return;
-  await runImport(()=> importConfig(url.trim()));
+  const input = prompt('请输入配置 URL');
+  if (!input) return;
+  let url;
+  try { url = new URL(input.trim()); }
+  catch { statusEl.textContent='导入失败: URL 不合法'; return; }
+  await runImport(()=> importConfig(url.toString()));
 });
 btnNewSession.addEventListener('click', ()=>{ statusEl.textContent='(未来: 新建会话)'; });
 btnDeleteSession.addEventListener('click', ()=>{ statusEl.textContent='(未来: 删除会话)'; });

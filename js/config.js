@@ -401,13 +401,16 @@ export function exportConfig(cfg, { safe=false } = {}){
   setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
 }
 
-export function importConfig(source){
-  if (typeof source === 'string'){
-    return fetch(source).then(async resp=>{
-      if (!resp.ok) throw new Error('fetch failed');
+export async function importConfig(source){
+  if (typeof source === 'string' || source instanceof URL){
+    const resp = await fetch(String(source));
+    if (!resp.ok) throw new Error('网络请求失败: ' + resp.status);
+    try {
+      return await resp.json();
+    } catch {
       const text = await resp.text();
       return JSON.parse(text);
-    });
+    }
   }
   return new Promise((resolve, reject)=>{
     const reader = new FileReader();
