@@ -153,16 +153,27 @@ window.addEventListener('keydown', e=>{
   else if (e.key==='Escape'){ if (streaming) cancelStream(); }
 });
 
-// 拖拽 txt 文件
+// 拖拽 txt 文件或文本内容
 inputEl.addEventListener('dragover', e=>{ e.preventDefault(); });
 inputEl.addEventListener('drop', e=>{
   e.preventDefault();
-  const f = e.dataTransfer.files[0]; if (!f) return;
-  if (f.type === 'text/plain' || f.name.endsWith('.txt')){
-    const reader = new FileReader();
-  reader.onload = ()=>{ inputEl.value = reader.result; setStatus('文件已载入'); };
-    reader.readAsText(f);
-  } else setStatus('仅支持 .txt');
+  const dt = e.dataTransfer;
+  const f = dt.files[0];
+  if (f){
+    if (f.type === 'text/plain' || f.name.endsWith('.txt')){
+      const reader = new FileReader();
+      reader.onload = ()=>{ inputEl.value = reader.result; setStatus('文件已载入'); };
+      reader.readAsText(f);
+    } else {
+      setStatus('仅支持 .txt');
+    }
+    return;
+  }
+  const text = dt.getData('text/plain');
+  if (text){
+    inputEl.value = text;
+    setStatus('文本已载入');
+  }
 });
 
 (function init(){
