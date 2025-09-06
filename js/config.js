@@ -401,13 +401,20 @@ export function exportConfig(cfg, { safe=false } = {}){
   setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
 }
 
-export function importConfig(file){
+export function importConfig(source){
+  if (typeof source === 'string'){
+    return fetch(source).then(async resp=>{
+      if (!resp.ok) throw new Error('fetch failed');
+      const text = await resp.text();
+      return JSON.parse(text);
+    });
+  }
   return new Promise((resolve, reject)=>{
     const reader = new FileReader();
     reader.onerror = ()=>reject(reader.error);
     reader.onload = ()=>{
       try { resolve(JSON.parse(String(reader.result))); } catch(e){ reject(e); }
     };
-    reader.readAsText(file);
+    reader.readAsText(source);
   });
 }

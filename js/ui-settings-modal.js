@@ -12,6 +12,7 @@ const btnTest = document.getElementById('btnTest');
 const btnExport = document.getElementById('btnExport');
 const btnExportSafe = document.getElementById('btnExportSafe');
 const btnImport = document.getElementById('btnImport');
+const btnImportUrl = document.getElementById('btnImportUrl');
 const btnNewSession = document.getElementById('btnNewSession');
 const btnDeleteSession = document.getElementById('btnDeleteSession');
 // 多服务 UI
@@ -253,17 +254,9 @@ btnTest.addEventListener('click', async()=>{
 btnExport.addEventListener('click', ()=> exportConfig(loadConfig()));
 btnExportSafe.addEventListener('click', ()=> exportConfig(loadConfig(), { safe:true }));
 btnImport.addEventListener('click', ()=> importFile.click());
-importFile.addEventListener('change', async()=>{
-  if (!importFile.files[0]) return; statusEl.textContent='导入中...';
-  const prevCfgRaw = localStorage.getItem('AI_TR_CFG_V1');
-  const prevApiMeta = localStorage.getItem(ENC_META_KEY);
-  const prevMpMeta = localStorage.getItem(MP_META_KEY);
-  let imported;
-  try { imported = await importConfig(importFile.files[0]); } catch(e){ statusEl.textContent='导入失败: 文件解析错误'; importFile.value=''; return; }
+async function applyImported(imported, prevCfgRaw, prevApiMeta, prevMpMeta){
   try {
-    // 写入元数据（如果有）
     if (imported.__masterPasswordMeta){ try { localStorage.setItem(MP_META_KEY, JSON.stringify(imported.__masterPasswordMeta)); } catch { /* ignore */ } }
-    // 新结构：按服务写入 meta
     if (imported.__apiKeyMetaMap){
       try {
         for (const [sid, meta] of Object.entries(imported.__apiKeyMetaMap)){
@@ -271,34 +264,56 @@ importFile.addEventListener('change', async()=>{
         }
       } catch { /* ignore */ }
     }
-    // 兼容旧：若存在旧单一 meta
     if (imported.__apiKeyMeta){ try { localStorage.setItem(ENC_META_KEY, JSON.stringify(imported.__apiKeyMeta)); } catch { /* ignore */ } }
-
-    // 如果需要主密码验证
     if (imported.masterPasswordEnc){
       let mp = prompt('请输入导入配置的主密码以验证解锁');
       if (mp == null){ throw new Error('已取消'); }
       mp = mp.trim();
       if (!mp){ throw new Error('主密码为空'); }
-      // 验证主密码密文
       try { const plainMp = await decryptMasterPassword(imported.masterPasswordEnc); if (plainMp !== mp){ throw new Error('主密码不匹配'); } } catch(e){ throw new Error('主密码验证失败'); }
-      // 验证 API Key 是否可用（如果存在）
       if (Array.isArray(imported.services)){
         for (const s of imported.services){ if (s.apiKeyEnc){ try { await decryptApiKey(s.apiKeyEnc, mp, s.id); } catch(e){ throw new Error(`服务 ${s.name||s.id} API Key 解密失败`); } } }
       } else if (imported.apiKeyEnc){
         try { await decryptApiKey(imported.apiKeyEnc, mp); } catch(e){ throw new Error('API Key 解密失败，可能主密码不正确'); }
       }
     }
-    // 清理临时字段
     delete imported.__apiKeyMeta; delete imported.__apiKeyMetaMap; delete imported.__masterPasswordMeta;
-    saveConfig(imported); loadIntoForm(); statusEl.textContent='导入成功';
+    saveConfig(imported); loadIntoForm();
   } catch(e){
-    // 回滚元数据与配置
     if (prevCfgRaw) localStorage.setItem('AI_TR_CFG_V1', prevCfgRaw); else localStorage.removeItem('AI_TR_CFG_V1');
     if (prevApiMeta) localStorage.setItem(ENC_META_KEY, prevApiMeta); else localStorage.removeItem(ENC_META_KEY);
     if (prevMpMeta) localStorage.setItem(MP_META_KEY, prevMpMeta); else localStorage.removeItem(MP_META_KEY);
+    throw e;
+  }
+}
+
+async function runImport(getImported, cleanup){
+  statusEl.textContent='导入中...';
+  const prevCfgRaw = localStorage.getItem('AI_TR_CFG_V1');
+  const prevApiMeta = localStorage.getItem(ENC_META_KEY);
+  const prevMpMeta = localStorage.getItem(MP_META_KEY);
+  let imported;
+  try { imported = await getImported(); }
+  catch(e){ statusEl.textContent='导入失败: 数据读取错误'; if (cleanup) cleanup(); return; }
+  try {
+    await applyImported(imported, prevCfgRaw, prevApiMeta, prevMpMeta);
+    statusEl.textContent='导入成功';
+  } catch(e){
     statusEl.textContent = '导入失败: ' + (e.message||'未知错误');
-  } finally { importFile.value=''; }
+  } finally {
+    if (cleanup) cleanup();
+  }
+}
+
+importFile.addEventListener('change', async()=>{
+  if (!importFile.files[0]) return;
+  await runImport(()=> importConfig(importFile.files[0]), ()=>{ importFile.value=''; });
+});
+
+btnImportUrl.addEventListener('click', async()=>{
+  const url = prompt('请输入配置 URL');
+  if (!url) return;
+  await runImport(()=> importConfig(url.trim()));
 });
 btnNewSession.addEventListener('click', ()=>{ statusEl.textContent='(未来: 新建会话)'; });
 btnDeleteSession.addEventListener('click', ()=>{ statusEl.textContent='(未来: 删除会话)'; });
