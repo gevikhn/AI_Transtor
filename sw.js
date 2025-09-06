@@ -7,7 +7,7 @@ const CORE_ASSETS = [
   './js/pwa.js',
   './manifest.webmanifest',
   './default.prompt',
-  './favicon.ico'
+  './favicon.png'
 ];
 
 self.addEventListener('install', event => {
