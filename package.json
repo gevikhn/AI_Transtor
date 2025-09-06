@@ -1,6 +1,6 @@
 {
   "name": "ai-translator",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,8 +10,8 @@
     "preview": "node scripts/serve.mjs"
   },
   "devDependencies": {
-    "esbuild": "^0.21.5",
-    "serve-static": "^1.15.0",
-    "finalhandler": "^1.2.0"
+    "esbuild": "^0.25.9",
+    "serve-static": "^2.2.0",
+    "finalhandler": "^2.1.0"
   }
 }
