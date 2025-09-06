@@ -169,7 +169,7 @@ inputEl.addEventListener('drop', e=>{
     }
     return;
   }
-  const text = dt.getData('text/plain') || dt.getData('text');
+  const text = dt.getData('text/plain');
   if (text){
     inputEl.value = text;
     setStatus('文本已载入');
