@@ -7,7 +7,7 @@
   "start_url": "./",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#121417",
+  "theme_color": "#0d0f11",
   "display_override": ["window-controls-overlay"],
   "edge_side_panel": {
     "preferred_width": 480
