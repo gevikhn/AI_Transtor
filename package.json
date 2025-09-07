@@ -1,17 +1,21 @@
 {
   "name": "ai-translator",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
     "watch": "node scripts/build.mjs --watch",
     "clean": "node scripts/clean.mjs",
-    "preview": "node scripts/serve.mjs"
+  "preview": "node scripts/serve.mjs --watch"
   },
   "devDependencies": {
     "esbuild": "^0.25.9",
     "serve-static": "^2.2.0",
     "finalhandler": "^2.1.0"
+  },
+  "dependencies": {
+    "markdown-it": "^14.1.0",
+    "turndown": "^7.2.0"
   }
 }

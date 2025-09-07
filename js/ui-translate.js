@@ -2,11 +2,13 @@
 import { loadConfig, setActiveService } from './config.js';
 import { translateOnce, translateStream } from './api.js';
 import { copyToClipboard, estimateTokens } from './utils.js';
+import TurndownService from 'turndown';
+import MarkdownIt from 'markdown-it';
 
 const langSelect = document.getElementById('langSelect');
 const serviceSelect = document.getElementById('serviceSelect');
 const inputEl = document.getElementById('inputText');
-const outputEl = document.getElementById('outputText');
+const outputView = document.getElementById('outputView');
 const statusBar = document.getElementById('statusBar');
 const btnTranslate = document.getElementById('btnTranslate');
 const btnClear = document.getElementById('btnClear');
@@ -40,6 +42,52 @@ function setStatus(msg){ statusBar.textContent = msg; }
 
 let currentAbort = null;
 let streaming = false;
+let outputRaw = '';
+
+// Markdown 工具
+const turndown = new TurndownService({ headingStyle:'atx', codeBlockStyle:'fenced' });
+const mdRender = new MarkdownIt({ html:false, linkify:true, breaks:true });
+
+function renderMarkdown(text){
+  if (!outputView) return;
+  if (!text){ outputView.innerHTML=''; return; }
+  outputView.innerHTML = mdRender.render(text);
+}
+
+// 在 textarea 光标处插入文本
+function insertAtCursor(textarea, text){
+  const start = textarea.selectionStart ?? textarea.value.length;
+  const end = textarea.selectionEnd ?? textarea.value.length;
+  const before = textarea.value.slice(0, start);
+  const after = textarea.value.slice(end);
+  textarea.value = before + text + after;
+  const pos = start + text.length;
+  textarea.selectionStart = textarea.selectionEnd = pos;
+}
+
+// 粘贴模式：'plain' 或 'markdown'
+const PASTE_MODE_KEY = 'AI_TR_PASTE_MODE';
+function getPasteMode(){ const v = localStorage.getItem(PASTE_MODE_KEY); return v==='markdown' ? 'markdown' : 'plain'; }
+function setPasteMode(v){ localStorage.setItem(PASTE_MODE_KEY, v==='markdown'?'markdown':'plain'); updatePasteToggleUI(); }
+function updatePasteToggleUI(){
+  const btn = document.getElementById('btnMdModeToggle'); if (!btn) return;
+  const mode = getPasteMode();
+  const iconMd = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 19V5l5 5 5-5v14"></path><path d="M21 5v14"></path></svg>';
+  const iconPlain = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M3 12h14M3 18h10"></path></svg>';
+  const isMd = mode==='markdown';
+  btn.title = isMd ? '粘贴保留格式 (Markdown)' : '粘贴为纯文本';
+  btn.setAttribute('aria-label', btn.title);
+  btn.innerHTML = isMd ? iconMd : iconPlain;
+  btn.setAttribute('aria-pressed', String(isMd));
+}
+function bindPasteToggle(){
+  const btn = document.getElementById('btnMdModeToggle'); if (!btn) return;
+  btn.addEventListener('click', ()=>{
+    const cur = getPasteMode();
+    setPasteMode(cur==='markdown' ? 'plain' : 'markdown');
+  });
+  updatePasteToggleUI();
+}
 
 async function doTranslate(){
   if (streaming){ cancelStream(); return; }
@@ -47,7 +95,8 @@ async function doTranslate(){
   if (!text){ setStatus('请输入内容'); return; }
   const cfg = loadConfig();
   const maxRetries = Number(cfg.retries||0);
-  outputEl.value='';
+  outputRaw='';
+  renderMarkdown('');
   // 不再持久化输出
   btnTranslate.textContent = cfg.stream ? '取消 (Esc)' : '翻译 (Ctrl+Enter)';
   btnTranslate.classList.toggle('danger', cfg.stream);
@@ -59,8 +108,9 @@ async function doTranslate(){
     let attempt=0;
     while(true){
       try {
-        const result = await translateOnce(text,{ targetLanguage: langSelect.value });
-  outputEl.value = result;
+  const result = await translateOnce(text,{ targetLanguage: langSelect.value });
+  outputRaw = result;
+  renderMarkdown(outputRaw);
   // 不再持久化输出
         const ms = Math.round(performance.now()-start);
         setStatus(`完成 ${ms}ms | ~${estimateTokens(result)} token` + (attempt?` | 重试${attempt}`:''));
@@ -86,8 +136,8 @@ async function doTranslate(){
   const scheduleFlush = ()=>{
     if (flushScheduled) return; flushScheduled = true;
     requestAnimationFrame(()=>{
-  if (buffer.pending){ outputEl.value += buffer.pending; buffer.pending=''; }
-  // 不再持久化输出
+      if (buffer.pending){ outputRaw += buffer.pending; buffer.pending=''; renderMarkdown(outputRaw); }
+      // 不再持久化输出
       flushScheduled = false;
     });
   };
@@ -101,13 +151,13 @@ async function doTranslate(){
             buffer.pending += chunk; 
             scheduleFlush();
             // 实时 token 估算（输出 + 输入）
-            const outPreviewLen = outputEl.value.length + buffer.pending.length;
+    const outPreviewLen = outputRaw.length + buffer.pending.length;
             setStatus(`流式中... ~in:${estimateTokens(text)} token / out:${estimateTokens(outPreviewLen+'')} token`);
         }
       }
-      if (buffer.pending){ outputEl.value += buffer.pending; buffer.pending=''; }
+  if (buffer.pending){ outputRaw += buffer.pending; buffer.pending=''; renderMarkdown(outputRaw); }
       const ms = Math.round(performance.now()-start);
-      setStatus(`完成 ${ms}ms | ~${estimateTokens(outputEl.value)} token` + (attempt?` | 重试${attempt}`:''));
+  setStatus(`完成 ${ms}ms | ~${estimateTokens(outputRaw)} token` + (attempt?` | 重试${attempt}`:''));
       break;
     } catch(e){
       if (e.name === 'AbortError'){ setStatus('已取消'); break; }
@@ -120,7 +170,8 @@ async function doTranslate(){
         try {
           setStatus('流式失败，回退非流式...');
           const result = await translateOnce(text,{ targetLanguage: langSelect.value });
-          outputEl.value = result;
+          outputRaw = result;
+          renderMarkdown(outputRaw);
           // 不再持久化输出
           const ms = Math.round(performance.now()-start);
           setStatus(`回退完成 ${ms}ms | ~${estimateTokens(result)} token`);
@@ -144,8 +195,8 @@ function resetButton(){
 }
 
 btnTranslate.addEventListener('click', doTranslate);
-btnClear.addEventListener('click', ()=>{ inputEl.value=''; outputEl.value=''; setStatus('已清空'); inputEl.focus(); });
-btnCopy.addEventListener('click', async()=>{ if (!outputEl.value) return; const ok = await copyToClipboard(outputEl.value); setStatus(ok?'已复制':'复制失败'); });
+btnClear.addEventListener('click', ()=>{ inputEl.value=''; outputRaw=''; renderMarkdown(''); setStatus('已清空'); inputEl.focus(); });
+btnCopy.addEventListener('click', async()=>{ if (!outputRaw) return; const ok = await copyToClipboard(outputRaw); setStatus(ok?'已复制':'复制失败'); });
 
 window.addEventListener('keydown', e=>{
   if ((e.metaKey||e.ctrlKey) && e.key==='Enter'){ doTranslate(); }
@@ -157,23 +208,50 @@ window.addEventListener('keydown', e=>{
 inputEl.addEventListener('dragover', e=>{ e.preventDefault(); });
 inputEl.addEventListener('drop', e=>{
   e.preventDefault();
+  // 需求：拖拽前先清空输入与输出
+  inputEl.value = '';
+  outputRaw = '';
+  renderMarkdown('');
   const dt = e.dataTransfer;
   const f = dt.files[0];
   if (f){
-    if (f.type === 'text/plain' || f.name.endsWith('.txt')){
+    if (f.type === 'text/plain' || f.name.endsWith('.txt') || f.name.endsWith('.md') || f.name.endsWith('.markdown')){
       const reader = new FileReader();
       reader.onload = ()=>{ inputEl.value = reader.result; setStatus('文件已载入'); };
       reader.readAsText(f);
     } else {
-      setStatus('仅支持 .txt');
+      setStatus('仅支持 .txt / .md');
     }
     return;
   }
-  const text = dt.getData('text/plain');
-  if (text){
-    inputEl.value = text;
-    setStatus('文本已载入');
+  const mode = getPasteMode();
+  if (mode==='markdown'){
+    const md = dt.getData('text/markdown');
+    if (md){ inputEl.value = md; setStatus('Markdown 已载入'); return; }
+    const html = dt.getData('text/html');
+    if (html){ const md2 = turndown.turndown(html); inputEl.value = md2; setStatus('HTML 已转换为 Markdown'); return; }
   }
+  const text = dt.getData('text/plain');
+  if (text){ inputEl.value = text; setStatus('文本已载入'); }
+});
+
+// 粘贴事件：保留 Markdown（或将 HTML 转为 Markdown）
+inputEl.addEventListener('paste', (e)=>{
+  const cd = e.clipboardData; if (!cd) return;
+  // 需求：粘贴前先清空输入与输出
+  inputEl.value = '';
+  outputRaw = '';
+  renderMarkdown('');
+  const mode = getPasteMode();
+  if (mode==='markdown'){
+    const md = cd.getData('text/markdown');
+    if (md){ e.preventDefault(); inputEl.value = md; setStatus('已粘贴 Markdown'); return; }
+    const html = cd.getData('text/html');
+    if (html){ e.preventDefault(); const md2 = turndown.turndown(html); inputEl.value = md2; setStatus('已从 HTML 转 Markdown'); return; }
+  }
+  // 否则默认（纯文本）
+  const text = cd.getData('text/plain');
+  if (text){ e.preventDefault(); inputEl.value = text; setStatus('已粘贴文本'); }
 });
 
 (function init(){
@@ -181,6 +259,7 @@ inputEl.addEventListener('drop', e=>{
   populateLangs(cfg);
   populateServices(cfg);
   // 不再恢复上次输入/输出
+  bindPasteToggle();
 })();
 
 // 输入监听持久化（节流）
