@@ -114,6 +114,49 @@
   </div>
 
   
+  <!-- 导入 URL 模态 -->
+  <div id="importUrlOverlay" class="modal-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="importUrlTitle">
+      <header class="modal-bar">
+        <h2 id="importUrlTitle">URL 导入</h2>
+        <div class="flex-gap"></div>
+        <button id="closeImportUrl" class="btn">关闭 (Esc)</button>
+      </header>
+      <div class="modal-body">
+        <form id="importUrlForm">
+          <label>配置 URL
+            <input id="importUrlInput" type="url" placeholder="https://example.com/ai_tr_config.json" required />
+          </label>
+          <div class="btn-row" style="margin-top:8px">
+            <button type="button" id="cancelImportUrl" class="btn">取消</button>
+            <button type="submit" class="btn primary">导入</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 主密码验证模态 -->
+  <div id="mpPromptOverlay" class="modal-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mpPromptTitle">
+      <header class="modal-bar">
+        <h2 id="mpPromptTitle">主密码验证</h2>
+        <div class="flex-gap"></div>
+        <button id="closeMpPrompt" class="btn">关闭 (Esc)</button>
+      </header>
+      <div class="modal-body">
+        <form id="mpPromptForm">
+          <label>请输入导入配置的主密码以验证解锁
+            <input id="mpPromptInput" type="password" placeholder="主密码" autocomplete="new-password" required />
+          </label>
+          <div class="btn-row" style="margin-top:8px">
+            <button type="button" id="cancelMpPrompt" class="btn">取消</button>
+            <button type="submit" class="btn primary">确定</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
 
   <script type="module" src="js/theme.js"></script>
   <script type="module" src="js/ui-translate.js"></script>
