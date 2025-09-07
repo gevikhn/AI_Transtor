@@ -4,6 +4,7 @@ const CORE_ASSETS = [
   './css/base.css',
   './js/ui-translate.js',
   './js/ui-settings-modal.js',
+  './js/theme.js',
   './js/pwa.js',
   './manifest.webmanifest',
   './default.prompt',

@@ -30,7 +30,7 @@
       <div class="flex-gap"></div>
       <button id="closeSettings" class="btn">关闭 (Esc)</button>
     </header>
-    <div class="modal-body">
+    <div class="modal-body settings-body">
       <form id="settingsForm">
         <fieldset><legend>服务配置</legend>
           <div class="btn-row" style="gap:.5rem;align-items:flex-end;flex-wrap:wrap">
@@ -43,6 +43,7 @@
         <fieldset><legend>全局</legend>
           <label>主密码 (解锁用) <input name="masterPassword" id="masterPassword" data-field="masterPassword" type="password" placeholder="留空则使用默认密钥" autocomplete="new-password"/></label>
           <label>默认目标语言 <select name="targetLanguage" data-field="targetLanguage"></select></label>
+          <label>主题 <select name="theme" data-field="theme"><option value="system">跟随系统</option><option value="light">亮色</option><option value="dark">暗色</option></select></label>
           <label>Prompt 模板</label>
           <textarea name="promptTemplate" data-field="promptTemplate" rows="10" placeholder="Prompt 模板"></textarea>
         </fieldset>
@@ -54,7 +55,7 @@
           </select></label>
           <label>Base URL <input name="baseUrl" data-field="baseUrl" placeholder="https://api.openai.com/v1" required/></label>
           <label>API Key <input name="apiKey" data-field="apiKey" type="password" placeholder="sk-..." autocomplete="off"/></label>
-          <label>模型 <input name="model" data-field="model" placeholder="gpt-4o-mini / claude-3-5-sonnet"/></label>
+          <label>模 <input name="model" data-field="model" placeholder="gpt-4o-mini / claude-3-5-sonnet"/></label>
         </fieldset>
         <fieldset><legend>高级</legend>
           <label>流式输出 <input type="checkbox" name="stream" data-field="stream"/></label>
@@ -64,8 +65,10 @@
           <label>重试次数 <input type="number" min="0" max="5" name="retries" data-field="retries" placeholder="2"/></label>
           <label>Store Responses <input type="checkbox" name="storeResponses" data-field="storeResponses"/></label>
         </fieldset>
+      </form>
+      <div class="settings-actions">
         <div class="btn-row">
-          <button type="submit" class="btn primary">保存</button>
+          <button type="submit" form="settingsForm" class="btn primary">保存</button>
           <button type="button" id="btnTest" class="btn">连通性测试</button>
           <button type="button" id="btnExport" class="btn">导出(含密文)</button>
           <button type="button" id="btnExportSafe" class="btn">安全导出(不含Key)</button>
@@ -74,12 +77,14 @@
           <button type="button" id="btnNewSession" class="btn">新建会话</button>
           <button type="button" id="btnDeleteSession" class="btn danger">删除会话</button>
         </div>
-      </form>
-      <input type="file" id="importFile" accept="application/json" hidden />
-      <section id="settingsStatus" class="status" aria-live="polite">未修改</section>
+        <input type="file" id="importFile" accept="application/json" hidden />
+        <section id="settingsStatus" class="status" aria-live="polite">未修改</section>
+      </div>
     </div>
   </div>
 </div>
+<script type="module" src="js/theme.js"></script>
 <script type="module" src="js/ui-translate.js"></script>
-<script type="module" src="js/ui-settings-modal.js"></script><script type="module" src="js/pwa.js"></script>
+<script type="module" src="js/ui-settings-modal.js"></script>
+<script type="module" src="js/pwa.js"></script>
 </body></html>

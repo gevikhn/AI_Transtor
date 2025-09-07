@@ -33,6 +33,7 @@ const defaultConfig = {
   maxTokens: undefined,
   timeoutMs: 30000,
   retries: 2,
+  theme: 'system',
   storeResponses: false,
   // 多服务
   services: [
