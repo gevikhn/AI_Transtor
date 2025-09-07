@@ -14,6 +14,7 @@
   <header class="bar">
     <h1 class="app-title">AI Translator <small id="buildInfo" style="font-weight:normal;font-size:0.6em;opacity:0.7"></small></h1>
     <div class="bar-tools">
+      <button id="btnMdModeToggle" class="icon-btn" type="button" title="粘贴为纯文本" aria-label="粘贴为纯文本" aria-pressed="false"></button>
       <button id="btnThemeToggle" class="icon-btn" type="button" title="自动（跟随系统）" aria-label="自动（跟随系统）" aria-pressed="false"></button>
     </div>
   </header>
@@ -24,7 +25,7 @@
       <div class="btn-row">
         <button id="btnTranslate" class="btn primary">翻译 (Ctrl+Enter)</button>
         <button id="btnClear" class="btn">清空</button>
-        <button id="btnCopy" class="btn">复制结果</button>
+        <button id="btnCopy" class="btn">复制</button>
         <nav><button id="openSettings" class="btn">设置</button></nav>
       </div>
     </section>
@@ -32,9 +33,9 @@
       <div class="pane">
       <textarea id="inputText" placeholder="在此粘贴或拖拽待翻译文本（含 .txt 文件）" spellcheck="false"></textarea>
       </div>
-      <div class="pane">
-      <textarea id="outputText" readonly placeholder="译文输出 (流式)..."></textarea>
-      </div>
+  <div class="pane">
+  <div id="outputView" class="markdown-body" aria-live="polite" tabindex="0" data-role="output" data-copy-source></div>
+  </div>
     </section>
     <section class="status" id="statusBar" aria-live="polite">就绪</section>
   </main>

@@ -5,7 +5,7 @@ body{display:flex;flex-direction:column;min-height:600px}
 .bar{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:var(--bar-bg);left:env(titlebar-area-x,0);top:env(titlebar-area-y,0);height:env(titlebar-area-height,50px);width:env(titlebar-area-width,100%);app-region:drag}
 .bar a{color:var(--accent);text-decoration:none;font-size:14px}
 .app-title{margin:0;font-size:16px;font-weight:600}
-.layout{width:100%;max-width:1200px;margin:0 auto;padding:var(--gap);flex:1;display:flex;flex-direction:column;gap:var(--gap)}
+.layout{width:100%;max-width:1200px;margin:0 auto;padding:var(--gap);flex:1;display:flex;flex-direction:column;gap:var(--gap);min-height:0}
 .controls{display:flex;flex-wrap:wrap;align-items:flex-end;gap:var(--gap)}
 .btn-row{display:flex;flex-wrap:wrap;gap:var(--gap)}
 .btn{background:var(--surface);color:var(--fg);border:1px solid var(--border);padding:6px 14px;border-radius:var(--radius);cursor:pointer;font:inherit;font-size:14px}
@@ -13,7 +13,7 @@ body{display:flex;flex-direction:column;min-height:600px}
 .btn.danger{background:var(--danger);color:#fff;border:none}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 /* Generic icon button (used by header/theme toggle) */
-.icon-btn{width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:var(--surface);color:var(--fg);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer}
+.icon-btn{width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:var(--surface);color:var(--fg);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer}
 .icon-btn[aria-pressed="true"]{outline:none}
 .icon-btn:focus{outline:none}
 .icon-btn:focus-visible{outline:2px solid var(--accent); outline-offset:0}
@@ -22,9 +22,22 @@ body{display:flex;flex-direction:column;min-height:600px}
 .bar .icon-btn:hover{background:var(--bar-bg);border-color:var(--bar-bg)}
 .bar-tools{display:flex;gap:8px;align-items:center}
 .panes{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:var(--gap);min-height:0}
-.pane{display:flex;flex-direction:column;min-height:0}
+.pane{display:flex;flex-direction:column;min-height:0;overflow:hidden}
 textarea{flex:1;width:100%;resize:vertical;background:var(--surface-alt);color:var(--fg);border:1px solid var(--border);border-radius:var(--radius);padding:10px;font:14px var(--mono);line-height:1.5}
 textarea:focus{outline:2px solid var(--accent);outline-offset:0}
+.markdown-body{font-size:14px;line-height:1.6}
+#outputView{flex:1 1 auto;width:100%;background:var(--surface-alt);color:var(--fg);border:1px solid var(--border);border-radius:var(--radius);padding:10px;line-height:1.5;overflow:auto;min-height:0;box-sizing:border-box}
+#outputView:focus{outline:2px solid var(--accent);outline-offset:0}
+/* placeholder for empty output */
+#outputView:empty::before{content:"译文输出";color:var(--fg-dim)}
+/* basic markdown tweaks */
+#outputView h1,#outputView h2,#outputView h3,#outputView h4,#outputView h5,#outputView h6{margin:0.6em 0 0.4em}
+#outputView p{margin:0.5em 0}
+#outputView ul,#outputView ol{margin:0.5em 1.2em}
+#outputView pre{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:8px;overflow:auto}
+#outputView code{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:0 3px}
+#outputView a{color:var(--accent);text-decoration:none}
+#outputView a:hover{text-decoration:underline}
 .status{margin-top:4px;font-size:12px;color:var(--fg-dim);min-height:16px;word-break:break-all}
 fieldset{border:1px solid var(--border);border-radius:var(--radius);padding:10px;margin-bottom:var(--gap);display:flex;flex-direction:column;gap:8px}
 legend{padding:0 6px;font-size:12px;color:var(--fg-dim)}
