@@ -84,7 +84,16 @@ const server = http.createServer(function onRequest (req, res) {
     });
     res.write(': connected\n\n');
     clients.add(res);
-    const heartbeat = setInterval(()=>{ try{ res.write(': ping\n\n'); } catch(_){} }, 20000);
+    const heartbeat = setInterval(()=>{
+      try {
+        res.write(': ping\n\n');
+      } catch(e) {
+        console.error('Error writing heartbeat to SSE client:', e);
+        clearInterval(heartbeat);
+        clients.delete(res);
+        try { res.end(); } catch(_) {}
+      }
+    }, 20000);
     req.on('close', ()=>{ clearInterval(heartbeat); clients.delete(res); });
     return;
   }
