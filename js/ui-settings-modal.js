@@ -20,6 +20,28 @@ const actionsPanel = document.querySelector('.settings-actions');
 const toggleActions = document.getElementById('toggleSettingsActions');
 const COLLAPSE_KEY = 'AI_TR_SETTINGS_ACTIONS_COLLAPSED';
 
+// ===== Body scroll lock with reference counting =====
+let __overlayLockCount = 0;
+let __savedBodyOverflow = '';
+function lockBodyScroll(ownerEl){
+  if (__overlayLockCount === 0){
+    __savedBodyOverflow = document.body.style.overflow || '';
+    document.body.style.overflow = 'hidden';
+  }
+  __overlayLockCount++;
+  if (ownerEl) ownerEl.dataset.bodyLocked = '1';
+}
+function unlockBodyScroll(ownerEl){
+  // Only unlock if this owner actually locked
+  if (ownerEl && ownerEl.dataset.bodyLocked !== '1') return;
+  if (ownerEl) delete ownerEl.dataset.bodyLocked;
+  __overlayLockCount = Math.max(0, __overlayLockCount - 1);
+  if (__overlayLockCount === 0){
+    document.body.style.overflow = __savedBodyOverflow || '';
+    __savedBodyOverflow = '';
+  }
+}
+
 function applyActionsCollapsed(on){
   if (!actionsPanel) return;
   actionsPanel.classList.toggle('collapsed', !!on);
@@ -95,9 +117,10 @@ function loadIntoForm(){
 
 function open(){
   loadIntoForm();
-  overlay.hidden=false; document.body.style.overflow='hidden';
+  overlay.hidden=false;
+  lockBodyScroll(overlay);
 }
-function close(){ overlay.hidden=true; document.body.style.overflow=''; }
+function close(){ overlay.hidden=true; unlockBodyScroll(overlay); }
 
 openBtn.addEventListener('click', open);
 closeBtn.addEventListener('click', close);
@@ -291,12 +314,12 @@ const mpCancel = document.getElementById('cancelMpPrompt');
 
 function openOverlay(overlayEl, focusEl){
   overlayEl.hidden = false;
-  document.body.style.overflow = 'hidden';
+  lockBodyScroll(overlayEl);
   setTimeout(()=> focusEl?.focus(), 0);
 }
 function closeOverlay(overlayEl){
   overlayEl.hidden = true;
-  document.body.style.overflow = '';
+  unlockBodyScroll(overlayEl);
 }
 
 function getUrlByModal(){
