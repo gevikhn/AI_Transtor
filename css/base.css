@@ -38,6 +38,11 @@ textarea:focus{outline:2px solid var(--accent);outline-offset:0}
 #outputView code{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:0 3px}
 #outputView a{color:var(--accent);text-decoration:none}
 #outputView a:hover{text-decoration:underline}
+/* tables */
+#outputView table{border-collapse:collapse;width:100%;margin:0.75em 0;background:var(--surface);border:1px solid var(--border)}
+#outputView th,#outputView td{border:1px solid var(--border);padding:6px 8px;text-align:left}
+#outputView th{background:var(--surface);font-weight:600}
+#outputView tr:nth-child(even){background:var(--surface-alt)}
 .status{margin-top:4px;font-size:12px;color:var(--fg-dim);min-height:16px;word-break:break-all}
 fieldset{border:1px solid var(--border);border-radius:var(--radius);padding:10px;margin-bottom:var(--gap);display:flex;flex-direction:column;gap:8px}
 legend{padding:0 6px;font-size:12px;color:var(--fg-dim)}

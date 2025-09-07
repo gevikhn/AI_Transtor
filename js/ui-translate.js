@@ -3,6 +3,7 @@ import { loadConfig, setActiveService } from './config.js';
 import { translateOnce, translateStream } from './api.js';
 import { copyToClipboard, estimateTokens } from './utils.js';
 import TurndownService from 'turndown';
+import { gfm } from 'turndown-plugin-gfm';
 import MarkdownIt from 'markdown-it';
 
 const langSelect = document.getElementById('langSelect');
@@ -46,12 +47,33 @@ let outputRaw = '';
 
 // Markdown 工具
 const turndown = new TurndownService({ headingStyle:'atx', codeBlockStyle:'fenced' });
+// 启用 GFM 支持（表格/删除线/任务列表等）
+turndown.use(gfm);
 const mdRender = new MarkdownIt({ html:false, linkify:true, breaks:true });
 
 function renderMarkdown(text){
   if (!outputView) return;
   if (!text){ outputView.innerHTML=''; return; }
   outputView.innerHTML = mdRender.render(text);
+}
+
+// 轻量 TSV -> Markdown 表格转换（用于无 HTML 时的粘贴/拖拽兜底）
+function tsvToMarkdownIfTable(text){
+  if (!text || text.indexOf('\t') === -1) return null;
+  const lines = text.replace(/\r\n?/g, '\n').split('\n').filter(l=>l.trim().length>0);
+  if (lines.length < 2) return null;
+  const cols = lines.map(l=>l.split('\t').length);
+  const colCount = cols[0];
+  if (colCount < 2) return null;
+  const consistent = cols.every(c=>c===colCount);
+  if (!consistent) return null;
+  const esc = s=>s.replace(/\|/g,'\\|').trim();
+  const rows = lines.map(l=>l.split('\t').map(esc));
+  const header = rows[0];
+  const sep = Array(colCount).fill('---');
+  const body = rows.slice(1);
+  const toLine = arr => `| ${arr.join(' | ')} |`;
+  return [toLine(header), toLine(sep), ...body.map(toLine)].join('\n');
 }
 
 // 在 textarea 光标处插入文本
@@ -237,6 +259,9 @@ inputEl.addEventListener('drop', e=>{
     if (md){ inputEl.value = md; setStatus('Markdown 已载入'); return; }
     const html = dt.getData('text/html');
     if (html){ const md2 = turndown.turndown(html); inputEl.value = md2; setStatus('HTML 已转换为 Markdown'); return; }
+  const plain = dt.getData('text/plain');
+  const mdFromTsv = tsvToMarkdownIfTable(plain);
+  if (mdFromTsv){ inputEl.value = mdFromTsv; setStatus('检测到表格 (TSV) · 已转换为 Markdown'); return; }
   }
   const text = dt.getData('text/plain');
   if (text){ inputEl.value = text; setStatus('文本已载入'); }
@@ -255,6 +280,9 @@ inputEl.addEventListener('paste', (e)=>{
     if (md){ e.preventDefault(); inputEl.value = md; setStatus('已粘贴 Markdown'); return; }
     const html = cd.getData('text/html');
     if (html){ e.preventDefault(); const md2 = turndown.turndown(html); inputEl.value = md2; setStatus('已从 HTML 转 Markdown'); return; }
+  const plain = cd.getData('text/plain');
+  const mdFromTsv = tsvToMarkdownIfTable(plain);
+  if (mdFromTsv){ e.preventDefault(); inputEl.value = mdFromTsv; setStatus('检测到表格 (TSV) · 已转换为 Markdown'); return; }
   }
   // 否则默认（纯文本）
   const text = cd.getData('text/plain');
