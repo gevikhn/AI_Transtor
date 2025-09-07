@@ -15,6 +15,56 @@ const btnImport = document.getElementById('btnImport');
 const btnImportUrl = document.getElementById('btnImportUrl');
 const btnNewSession = document.getElementById('btnNewSession');
 const btnDeleteSession = document.getElementById('btnDeleteSession');
+// actions sidebar collapse
+const actionsPanel = document.querySelector('.settings-actions');
+const toggleActions = document.getElementById('toggleSettingsActions');
+const COLLAPSE_KEY = 'AI_TR_SETTINGS_ACTIONS_COLLAPSED';
+
+// ===== Body scroll lock with reference counting =====
+let __overlayLockCount = 0;
+let __savedBodyOverflow = '';
+function lockBodyScroll(ownerEl){
+  if (__overlayLockCount === 0){
+    __savedBodyOverflow = document.body.style.overflow || '';
+    document.body.style.overflow = 'hidden';
+  }
+  __overlayLockCount++;
+  if (ownerEl) ownerEl.dataset.bodyLocked = '1';
+}
+function unlockBodyScroll(ownerEl){
+  // Only unlock if this owner actually locked
+  if (ownerEl && ownerEl.dataset.bodyLocked !== '1') return;
+  if (ownerEl) delete ownerEl.dataset.bodyLocked;
+  __overlayLockCount = Math.max(0, __overlayLockCount - 1);
+  if (__overlayLockCount === 0){
+    document.body.style.overflow = __savedBodyOverflow || '';
+    __savedBodyOverflow = '';
+  }
+}
+
+function applyActionsCollapsed(on){
+  if (!actionsPanel) return;
+  actionsPanel.classList.toggle('collapsed', !!on);
+  if (toggleActions) toggleActions.setAttribute('aria-pressed', on ? 'true':'false');
+}
+// Utility: check if any child overlay (e.g., URL/master password) is open
+function hasActiveSubOverlay(){
+  const u = document.getElementById('importUrlOverlay');
+  const m = document.getElementById('mpPromptOverlay');
+  return (!!u && !u.hidden) || (!!m && !m.hidden);
+}
+
+try {
+  const initCollapsed = localStorage.getItem(COLLAPSE_KEY) === '1';
+  applyActionsCollapsed(initCollapsed);
+} catch {}
+if (toggleActions){
+  toggleActions.addEventListener('click', ()=>{
+    const now = !(actionsPanel && actionsPanel.classList.contains('collapsed'));
+    applyActionsCollapsed(now);
+    try { localStorage.setItem(COLLAPSE_KEY, now ? '1':'0'); } catch {}
+  });
+}
 // 多服务 UI
 const svcSelect = document.getElementById('svcSelect');
 const svcName = document.getElementById('svcName');
@@ -74,14 +124,17 @@ function loadIntoForm(){
 
 function open(){
   loadIntoForm();
-  overlay.hidden=false; document.body.style.overflow='hidden';
+  overlay.hidden=false;
+  lockBodyScroll(overlay);
 }
-function close(){ overlay.hidden=true; document.body.style.overflow=''; }
+function close(){ overlay.hidden=true; unlockBodyScroll(overlay); }
 
 openBtn.addEventListener('click', open);
 closeBtn.addEventListener('click', close);
 overlay.addEventListener('click', e=>{ if (e.target===overlay) close(); });
-window.addEventListener('keydown', e=>{ if (e.key==='Escape' && !overlay.hidden) close(); });
+window.addEventListener('keydown', e=>{
+  if (e.key==='Escape' && !overlay.hidden && !hasActiveSubOverlay()) close();
+});
 
 form.addEventListener('submit', async e=>{
   e.preventDefault();
@@ -254,6 +307,76 @@ btnTest.addEventListener('click', async()=>{
 btnExport.addEventListener('click', ()=> exportConfig(loadConfig()));
 btnExportSafe.addEventListener('click', ()=> exportConfig(loadConfig(), { safe:true }));
 btnImport.addEventListener('click', ()=> importFile.click());
+
+// ===== 简易模态：URL 输入 & 主密码验证 =====
+const urlOverlay = document.getElementById('importUrlOverlay');
+const urlForm = document.getElementById('importUrlForm');
+const urlInput = document.getElementById('importUrlInput');
+const urlClose = document.getElementById('closeImportUrl');
+const urlCancel = document.getElementById('cancelImportUrl');
+
+const mpOverlay = document.getElementById('mpPromptOverlay');
+const mpForm = document.getElementById('mpPromptForm');
+const mpInputEl = document.getElementById('mpPromptInput');
+const mpClose = document.getElementById('closeMpPrompt');
+const mpCancel = document.getElementById('cancelMpPrompt');
+
+function openOverlay(overlayEl, focusEl){
+  overlayEl.hidden = false;
+  lockBodyScroll(overlayEl);
+  setTimeout(()=> focusEl?.focus(), 0);
+}
+function closeOverlay(overlayEl){
+  overlayEl.hidden = true;
+  unlockBodyScroll(overlayEl);
+}
+
+function getUrlByModal(){
+  return new Promise((resolve)=>{
+    const onSubmit = (e)=>{ e.preventDefault(); const v = String(urlInput.value||'').trim(); resolve(v||''); cleanup(); };
+    const onCancel = ()=>{ resolve(''); cleanup(); };
+    const onOverlay = (e)=>{ if (e.target===urlOverlay) { resolve(''); cleanup(); } };
+    const onEsc = (e)=>{ if (e.key==='Escape') { resolve(''); cleanup(); } };
+    function cleanup(){
+      urlForm.removeEventListener('submit', onSubmit);
+      urlCancel.removeEventListener('click', onCancel);
+      urlClose.removeEventListener('click', onCancel);
+      urlOverlay.removeEventListener('click', onOverlay);
+      window.removeEventListener('keydown', onEsc);
+      closeOverlay(urlOverlay);
+    }
+    urlForm.addEventListener('submit', onSubmit);
+    urlCancel.addEventListener('click', onCancel);
+    urlClose.addEventListener('click', onCancel);
+    urlOverlay.addEventListener('click', onOverlay);
+    window.addEventListener('keydown', onEsc);
+    openOverlay(urlOverlay, urlInput);
+  });
+}
+
+function getMasterPasswordByModal(){
+  return new Promise((resolve, reject)=>{
+    const onSubmit = (e)=>{ e.preventDefault(); const v = String(mpInputEl.value||'').trim(); if (!v){ mpInputEl.focus(); return; } resolve(v); cleanup(); };
+    const onCancel = ()=>{ reject(new Error('已取消')); cleanup(); };
+    const onOverlay = (e)=>{ if (e.target===mpOverlay) { onCancel(); } };
+    const onEsc = (e)=>{ if (e.key==='Escape') { onCancel(); } };
+    function cleanup(){
+      mpForm.removeEventListener('submit', onSubmit);
+      mpCancel.removeEventListener('click', onCancel);
+      mpClose.removeEventListener('click', onCancel);
+      mpOverlay.removeEventListener('click', onOverlay);
+      window.removeEventListener('keydown', onEsc);
+      mpInputEl.value = '';
+      closeOverlay(mpOverlay);
+    }
+    mpForm.addEventListener('submit', onSubmit);
+    mpCancel.addEventListener('click', onCancel);
+    mpClose.addEventListener('click', onCancel);
+    mpOverlay.addEventListener('click', onOverlay);
+    window.addEventListener('keydown', onEsc);
+    openOverlay(mpOverlay, mpInputEl);
+  });
+}
 async function applyImported(imported, prevCfgRaw, prevApiMeta, prevMpMeta){
   try {
     if (imported.__masterPasswordMeta){ try { localStorage.setItem(MP_META_KEY, JSON.stringify(imported.__masterPasswordMeta)); } catch { /* ignore */ } }
@@ -266,10 +389,7 @@ async function applyImported(imported, prevCfgRaw, prevApiMeta, prevMpMeta){
     }
     if (imported.__apiKeyMeta){ try { localStorage.setItem(ENC_META_KEY, JSON.stringify(imported.__apiKeyMeta)); } catch { /* ignore */ } }
     if (imported.masterPasswordEnc){
-      let mp = prompt('请输入导入配置的主密码以验证解锁');
-      if (mp == null){ throw new Error('已取消'); }
-      mp = mp.trim();
-      if (!mp){ throw new Error('主密码为空'); }
+      let mp = await getMasterPasswordByModal();
       try { const plainMp = await decryptMasterPassword(imported.masterPasswordEnc); if (plainMp !== mp){ throw new Error('主密码不匹配'); } } catch(e){ throw new Error('主密码验证失败'); }
       if (Array.isArray(imported.services)){
         for (const s of imported.services){ if (s.apiKeyEnc){ try { await decryptApiKey(s.apiKeyEnc, mp, s.id); } catch(e){ throw new Error(`服务 ${s.name||s.id} API Key 解密失败`); } } }
@@ -311,7 +431,7 @@ importFile.addEventListener('change', async()=>{
 });
 
 btnImportUrl.addEventListener('click', async()=>{
-  const input = prompt('请输入配置 URL');
+  const input = await getUrlByModal();
   if (!input) return;
   let url;
   try { url = new URL(input.trim()); }

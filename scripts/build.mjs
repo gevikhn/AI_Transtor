@@ -74,6 +74,7 @@ async function run({ watch=false }={}){
     entryPoints: [
       path.join(root,'js','ui-translate.js'),
       path.join(root,'js','ui-settings-modal.js'),
+      path.join(root,'js','theme.js'),
       // path.join(root,'js','ui-settings.js'),
       path.join(root,'js','api.js'),
       path.join(root,'js','config.js'),

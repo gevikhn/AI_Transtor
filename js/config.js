@@ -33,6 +33,7 @@ const defaultConfig = {
   maxTokens: undefined,
   timeoutMs: 30000,
   retries: 2,
+  // theme 已移除，由 UI 侧边栏开关管理（localStorage: AI_TR_THEME_MODE）
   storeResponses: false,
   // 多服务
   services: [
@@ -191,6 +192,7 @@ export function loadConfig(){
 
 export function saveConfig(cfg){
   const clean = { ...defaultConfig, ...cfg };
+  if ('theme' in clean) delete clean.theme; // 主题配置已废弃，不再持久化
   clean.services = normalizeServices(clean.services);
   if (!clean.activeServiceId) clean.activeServiceId = clean.services[0].id;
   if ('masterPassword' in clean) delete clean.masterPassword;
