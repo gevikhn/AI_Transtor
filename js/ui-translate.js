@@ -215,7 +215,14 @@ inputEl.addEventListener('drop', e=>{
   const dt = e.dataTransfer;
   const f = dt.files[0];
   if (f){
-    if (f.type === 'text/plain' || f.name.endsWith('.txt') || f.name.endsWith('.md') || f.name.endsWith('.markdown')){
+    if (
+      f.type === 'text/plain' ||
+      f.type === 'text/markdown' ||
+      f.type === 'text/x-markdown' ||
+      f.name.endsWith('.txt') ||
+      f.name.endsWith('.md') ||
+      f.name.endsWith('.markdown')
+    ){
       const reader = new FileReader();
       reader.onload = ()=>{ inputEl.value = reader.result; setStatus('文件已载入'); };
       reader.readAsText(f);
