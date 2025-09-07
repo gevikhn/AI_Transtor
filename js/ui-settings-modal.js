@@ -47,6 +47,13 @@ function applyActionsCollapsed(on){
   actionsPanel.classList.toggle('collapsed', !!on);
   if (toggleActions) toggleActions.setAttribute('aria-pressed', on ? 'true':'false');
 }
+// Utility: check if any child overlay (e.g., URL/master password) is open
+function hasActiveSubOverlay(){
+  const u = document.getElementById('importUrlOverlay');
+  const m = document.getElementById('mpPromptOverlay');
+  return (!!u && !u.hidden) || (!!m && !m.hidden);
+}
+
 try {
   const initCollapsed = localStorage.getItem(COLLAPSE_KEY) === '1';
   applyActionsCollapsed(initCollapsed);
@@ -125,7 +132,9 @@ function close(){ overlay.hidden=true; unlockBodyScroll(overlay); }
 openBtn.addEventListener('click', open);
 closeBtn.addEventListener('click', close);
 overlay.addEventListener('click', e=>{ if (e.target===overlay) close(); });
-window.addEventListener('keydown', e=>{ if (e.key==='Escape' && !overlay.hidden) close(); });
+window.addEventListener('keydown', e=>{
+  if (e.key==='Escape' && !overlay.hidden && !hasActiveSubOverlay()) close();
+});
 
 form.addEventListener('submit', async e=>{
   e.preventDefault();
