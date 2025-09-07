@@ -1,6 +1,6 @@
 {
   "name": "ai-translator",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "markdown-it": "^14.1.0",
-    "turndown": "^7.2.0"
+  "turndown": "^7.2.0",
+  "turndown-plugin-gfm": "^1.0.2"
   }
 }
