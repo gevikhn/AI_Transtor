@@ -254,16 +254,15 @@ inputEl.addEventListener('drop', e=>{
     return;
   }
   const mode = getPasteMode();
+  const text = dt.getData('text/plain');
   if (mode==='markdown'){
     const md = dt.getData('text/markdown');
     if (md){ inputEl.value = md; setStatus('Markdown 已载入'); return; }
     const html = dt.getData('text/html');
     if (html){ const md2 = turndown.turndown(html); inputEl.value = md2; setStatus('HTML 已转换为 Markdown'); return; }
-  const plain = dt.getData('text/plain');
-  const mdFromTsv = tsvToMarkdownIfTable(plain);
+  const mdFromTsv = tsvToMarkdownIfTable(text);
   if (mdFromTsv){ inputEl.value = mdFromTsv; setStatus('检测到表格 (TSV) · 已转换为 Markdown'); return; }
   }
-  const text = dt.getData('text/plain');
   if (text){ inputEl.value = text; setStatus('文本已载入'); }
 });
 
@@ -275,17 +274,16 @@ inputEl.addEventListener('paste', (e)=>{
   outputRaw = '';
   renderMarkdown('');
   const mode = getPasteMode();
+  const text = cd.getData('text/plain');
   if (mode==='markdown'){
     const md = cd.getData('text/markdown');
     if (md){ e.preventDefault(); inputEl.value = md; setStatus('已粘贴 Markdown'); return; }
     const html = cd.getData('text/html');
     if (html){ e.preventDefault(); const md2 = turndown.turndown(html); inputEl.value = md2; setStatus('已从 HTML 转 Markdown'); return; }
-  const plain = cd.getData('text/plain');
-  const mdFromTsv = tsvToMarkdownIfTable(plain);
+  const mdFromTsv = tsvToMarkdownIfTable(text);
   if (mdFromTsv){ e.preventDefault(); inputEl.value = mdFromTsv; setStatus('检测到表格 (TSV) · 已转换为 Markdown'); return; }
   }
   // 否则默认（纯文本）
-  const text = cd.getData('text/plain');
   if (text){ e.preventDefault(); inputEl.value = text; setStatus('已粘贴文本'); }
 });
 
