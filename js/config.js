@@ -401,13 +401,23 @@ export function exportConfig(cfg, { safe=false } = {}){
   setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
 }
 
-export function importConfig(file){
+export async function importConfig(source){
+  if (typeof source === 'string' || source instanceof URL){
+    const resp = await fetch(String(source));
+    if (!resp.ok) throw new Error('网络请求失败: ' + resp.status);
+    const text = await resp.text();
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      throw new Error('配置文件格式错误: ' + e.message);
+    }
+  }
   return new Promise((resolve, reject)=>{
     const reader = new FileReader();
     reader.onerror = ()=>reject(reader.error);
     reader.onload = ()=>{
       try { resolve(JSON.parse(String(reader.result))); } catch(e){ reject(e); }
     };
-    reader.readAsText(file);
+    reader.readAsText(source);
   });
 }
