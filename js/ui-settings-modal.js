@@ -15,6 +15,27 @@ const btnImport = document.getElementById('btnImport');
 const btnImportUrl = document.getElementById('btnImportUrl');
 const btnNewSession = document.getElementById('btnNewSession');
 const btnDeleteSession = document.getElementById('btnDeleteSession');
+// actions sidebar collapse
+const actionsPanel = document.querySelector('.settings-actions');
+const toggleActions = document.getElementById('toggleSettingsActions');
+const COLLAPSE_KEY = 'AI_TR_SETTINGS_ACTIONS_COLLAPSED';
+
+function applyActionsCollapsed(on){
+  if (!actionsPanel) return;
+  actionsPanel.classList.toggle('collapsed', !!on);
+  if (toggleActions) toggleActions.setAttribute('aria-pressed', on ? 'true':'false');
+}
+try {
+  const initCollapsed = localStorage.getItem(COLLAPSE_KEY) === '1';
+  applyActionsCollapsed(initCollapsed);
+} catch {}
+if (toggleActions){
+  toggleActions.addEventListener('click', ()=>{
+    const now = !(actionsPanel && actionsPanel.classList.contains('collapsed'));
+    applyActionsCollapsed(now);
+    try { localStorage.setItem(COLLAPSE_KEY, now ? '1':'0'); } catch {}
+  });
+}
 // 多服务 UI
 const svcSelect = document.getElementById('svcSelect');
 const svcName = document.getElementById('svcName');
