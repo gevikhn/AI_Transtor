@@ -405,11 +405,11 @@ export async function importConfig(source){
   if (typeof source === 'string' || source instanceof URL){
     const resp = await fetch(String(source));
     if (!resp.ok) throw new Error('网络请求失败: ' + resp.status);
+    const text = await resp.text();
     try {
-      return await resp.json();
-    } catch {
-      const text = await resp.text();
       return JSON.parse(text);
+    } catch (e) {
+      throw new Error('配置文件格式错误: ' + e.message);
     }
   }
   return new Promise((resolve, reject)=>{
