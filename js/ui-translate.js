@@ -237,7 +237,12 @@ function resetButton(){
 }
 
 btnTranslate.addEventListener('click', doTranslate);
-btnClear.addEventListener('click', ()=>{ inputEl.value=''; outputRaw=''; renderMarkdown(''); setStatus('已清空'); inputEl.focus(); });
+btnClear.addEventListener('click', ()=>{
+  replaceInputText('');
+  outputRaw='';
+  renderMarkdown('');
+  setStatus('已清空');
+});
 btnCopy.addEventListener('click', async()=>{ if (!outputRaw) return; const ok = await copyToClipboard(outputRaw); setStatus(ok?'已复制':'复制失败'); });
 
 window.addEventListener('keydown', e=>{
@@ -251,7 +256,7 @@ inputEl.addEventListener('dragover', e=>{ e.preventDefault(); });
 inputEl.addEventListener('drop', e=>{
   e.preventDefault();
   // 需求：拖拽前先清空输入与输出
-  inputEl.value = '';
+  replaceInputText('');
   outputRaw = '';
   renderMarkdown('');
   const dt = e.dataTransfer;
@@ -290,7 +295,7 @@ inputEl.addEventListener('drop', e=>{
 inputEl.addEventListener('paste', (e)=>{
   const cd = e.clipboardData; if (!cd) return;
   // 需求：粘贴前先清空输入与输出
-  inputEl.value = '';
+  replaceInputText('');
   outputRaw = '';
   renderMarkdown('');
   const mode = getPasteMode();
