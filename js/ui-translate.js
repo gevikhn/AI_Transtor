@@ -89,19 +89,30 @@ function tsvToMarkdownIfTable(text){
   return [toLine(header), toLine(sep), ...body.map(toLine)].join('\n');
 }
 
-// 替换指定范围内容并保留撤销栈
-// 若未指定 start/end，则替换全部内容
-function replaceInputText(text, start = 0, end = inputEl.value.length){
+// 在 textarea 光标处插入文本
+function insertAtCursor(textarea, text){
+  const start = textarea.selectionStart ?? textarea.value.length;
+  const end = textarea.selectionEnd ?? textarea.value.length;
+  const before = textarea.value.slice(0, start);
+  const after = textarea.value.slice(end);
+  textarea.value = before + text + after;
+  const pos = start + text.length;
+  textarea.selectionStart = textarea.selectionEnd = pos;
+}
+
+// 替换整个输入内容并保留撤销栈
+function replaceInputText(text){
   inputEl.focus();
-  inputEl.setRangeText(text, start, end, 'end');
+  // 使用 setRangeText 替换并手动触发 input 事件以保持撤销栈
+  inputEl.setRangeText(text, 0, inputEl.value.length, 'end');
   try {
     inputEl.dispatchEvent(new InputEvent('input', { bubbles: true }));
   } catch (e) {
     // 某些旧环境不支持 InputEvent 构造器
     inputEl.dispatchEvent(new Event('input', { bubbles: true }));
   }
-  // 光标置于插入文本后
-  const pos = start + text.length;
+  // 光标置于末尾
+  const pos = inputEl.value.length;
   inputEl.setSelectionRange(pos, pos);
 }
 
@@ -298,14 +309,14 @@ inputEl.addEventListener('paste', (e)=>{
   const text = cd.getData('text/plain');
   if (mode==='markdown'){
     const md = cd.getData('text/markdown');
-    if (md){ e.preventDefault(); replaceInputText(md, inputEl.selectionStart, inputEl.selectionEnd); setStatus('已粘贴 Markdown'); return; }
+    if (md){ e.preventDefault(); replaceInputText(md); setStatus('已粘贴 Markdown'); return; }
     const html = cd.getData('text/html');
-    if (html){ e.preventDefault(); const md2 = turndown.turndown(html); replaceInputText(md2, inputEl.selectionStart, inputEl.selectionEnd); setStatus('已从 HTML 转 Markdown'); return; }
+    if (html){ e.preventDefault(); const md2 = turndown.turndown(html); replaceInputText(md2); setStatus('已从 HTML 转 Markdown'); return; }
     const mdFromTsv = tsvToMarkdownIfTable(text);
-    if (mdFromTsv){ e.preventDefault(); replaceInputText(mdFromTsv, inputEl.selectionStart, inputEl.selectionEnd); setStatus('检测到表格 (TSV) · 已转换为 Markdown'); return; }
+    if (mdFromTsv){ e.preventDefault(); replaceInputText(mdFromTsv); setStatus('检测到表格 (TSV) · 已转换为 Markdown'); return; }
   }
   // 否则默认（纯文本）
-  if (text){ e.preventDefault(); replaceInputText(text, inputEl.selectionStart, inputEl.selectionEnd); setStatus('已粘贴文本'); }
+  if (text){ e.preventDefault(); replaceInputText(text); setStatus('已粘贴文本'); }
 });
 
 (function init(){
