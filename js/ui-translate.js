@@ -15,6 +15,19 @@ const btnTranslate = document.getElementById('btnTranslate');
 const btnClear = document.getElementById('btnClear');
 const btnCopy = document.getElementById('btnCopy');
 
+// 支持在输出区域使用 Ctrl+A 仅选择翻译结果
+outputView?.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a') {
+    e.preventDefault();
+    const sel = window.getSelection();
+    if (!sel) return;
+    const range = document.createRange();
+    range.selectNodeContents(outputView);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+});
+
 const LANGS = [
   ['zh-CN','中文'],['en','English'],['ja','日本語'],['ko','한국어'],['fr','Français'],['de','Deutsch']
 ];
@@ -231,7 +244,6 @@ inputEl.addEventListener('dragover', e=>{ e.preventDefault(); });
 inputEl.addEventListener('drop', e=>{
   e.preventDefault();
   // 需求：拖拽前先清空输入与输出
-  inputEl.value = '';
   outputRaw = '';
   renderMarkdown('');
   const dt = e.dataTransfer;
@@ -246,7 +258,7 @@ inputEl.addEventListener('drop', e=>{
       f.name.endsWith('.markdown')
     ){
       const reader = new FileReader();
-      reader.onload = ()=>{ inputEl.value = reader.result; setStatus('文件已载入'); };
+      reader.onload = ()=>{ inputEl.focus(); inputEl.setRangeText(reader.result, 0, inputEl.value.length, 'end'); setStatus('文件已载入'); };
       reader.readAsText(f);
     } else {
       setStatus('仅支持 .txt / .md');
@@ -257,34 +269,33 @@ inputEl.addEventListener('drop', e=>{
   const text = dt.getData('text/plain');
   if (mode==='markdown'){
     const md = dt.getData('text/markdown');
-    if (md){ inputEl.value = md; setStatus('Markdown 已载入'); return; }
+    if (md){ inputEl.focus(); inputEl.setRangeText(md, 0, inputEl.value.length, 'end'); setStatus('Markdown 已载入'); return; }
     const html = dt.getData('text/html');
-    if (html){ const md2 = turndown.turndown(html); inputEl.value = md2; setStatus('HTML 已转换为 Markdown'); return; }
-  const mdFromTsv = tsvToMarkdownIfTable(text);
-  if (mdFromTsv){ inputEl.value = mdFromTsv; setStatus('检测到表格 (TSV) · 已转换为 Markdown'); return; }
+    if (html){ const md2 = turndown.turndown(html); inputEl.focus(); inputEl.setRangeText(md2, 0, inputEl.value.length, 'end'); setStatus('HTML 已转换为 Markdown'); return; }
+    const mdFromTsv = tsvToMarkdownIfTable(text);
+    if (mdFromTsv){ inputEl.focus(); inputEl.setRangeText(mdFromTsv, 0, inputEl.value.length, 'end'); setStatus('检测到表格 (TSV) · 已转换为 Markdown'); return; }
   }
-  if (text){ inputEl.value = text; setStatus('文本已载入'); }
+  if (text){ inputEl.focus(); inputEl.setRangeText(text, 0, inputEl.value.length, 'end'); setStatus('文本已载入'); }
 });
 
 // 粘贴事件：保留 Markdown（或将 HTML 转为 Markdown）
 inputEl.addEventListener('paste', (e)=>{
   const cd = e.clipboardData; if (!cd) return;
   // 需求：粘贴前先清空输入与输出
-  inputEl.value = '';
   outputRaw = '';
   renderMarkdown('');
   const mode = getPasteMode();
   const text = cd.getData('text/plain');
   if (mode==='markdown'){
     const md = cd.getData('text/markdown');
-    if (md){ e.preventDefault(); inputEl.value = md; setStatus('已粘贴 Markdown'); return; }
+    if (md){ e.preventDefault(); inputEl.focus(); inputEl.setRangeText(md, 0, inputEl.value.length, 'end'); setStatus('已粘贴 Markdown'); return; }
     const html = cd.getData('text/html');
-    if (html){ e.preventDefault(); const md2 = turndown.turndown(html); inputEl.value = md2; setStatus('已从 HTML 转 Markdown'); return; }
-  const mdFromTsv = tsvToMarkdownIfTable(text);
-  if (mdFromTsv){ e.preventDefault(); inputEl.value = mdFromTsv; setStatus('检测到表格 (TSV) · 已转换为 Markdown'); return; }
+    if (html){ e.preventDefault(); const md2 = turndown.turndown(html); inputEl.focus(); inputEl.setRangeText(md2, 0, inputEl.value.length, 'end'); setStatus('已从 HTML 转 Markdown'); return; }
+    const mdFromTsv = tsvToMarkdownIfTable(text);
+    if (mdFromTsv){ e.preventDefault(); inputEl.focus(); inputEl.setRangeText(mdFromTsv, 0, inputEl.value.length, 'end'); setStatus('检测到表格 (TSV) · 已转换为 Markdown'); return; }
   }
   // 否则默认（纯文本）
-  if (text){ e.preventDefault(); inputEl.value = text; setStatus('已粘贴文本'); }
+  if (text){ e.preventDefault(); inputEl.focus(); inputEl.setRangeText(text, 0, inputEl.value.length, 'end'); setStatus('已粘贴文本'); }
 });
 
 (function init(){
