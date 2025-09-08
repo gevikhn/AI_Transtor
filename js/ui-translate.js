@@ -268,23 +268,69 @@ inputEl.addEventListener('drop', e=>{
 
 // 粘贴事件：保留 Markdown（或将 HTML 转为 Markdown）
 inputEl.addEventListener('paste', (e)=>{
-  const cd = e.clipboardData; if (!cd) return;
-  // 需求：粘贴前先清空输入与输出
-  inputEl.value = '';
-  outputRaw = '';
-  renderMarkdown('');
+  const cd = e.clipboardData; 
+  if (!cd) return; // Let default paste behavior handle it
+  
   const mode = getPasteMode();
   const text = cd.getData('text/plain');
+  
+  // Only handle paste if we have clipboard data and custom processing is needed
+  let customHandled = false;
+  
   if (mode==='markdown'){
     const md = cd.getData('text/markdown');
-    if (md){ e.preventDefault(); inputEl.value = md; setStatus('已粘贴 Markdown'); return; }
+    if (md){ 
+      e.preventDefault(); 
+      // 需求：粘贴前先清空输入与输出
+      inputEl.value = '';
+      outputRaw = '';
+      renderMarkdown('');
+      inputEl.value = md; 
+      setStatus('已粘贴 Markdown'); 
+      customHandled = true;
+      return; 
+    }
     const html = cd.getData('text/html');
-    if (html){ e.preventDefault(); const md2 = turndown.turndown(html); inputEl.value = md2; setStatus('已从 HTML 转 Markdown'); return; }
-  const mdFromTsv = tsvToMarkdownIfTable(text);
-  if (mdFromTsv){ e.preventDefault(); inputEl.value = mdFromTsv; setStatus('检测到表格 (TSV) · 已转换为 Markdown'); return; }
+    if (html){ 
+      e.preventDefault(); 
+      // 需求：粘贴前先清空输入与输出
+      inputEl.value = '';
+      outputRaw = '';
+      renderMarkdown('');
+      const md2 = turndown.turndown(html); 
+      inputEl.value = md2; 
+      setStatus('已从 HTML 转 Markdown'); 
+      customHandled = true;
+      return; 
+    }
+    const mdFromTsv = tsvToMarkdownIfTable(text);
+    if (mdFromTsv){ 
+      e.preventDefault(); 
+      // 需求：粘贴前先清空输入与输出
+      inputEl.value = '';
+      outputRaw = '';
+      renderMarkdown('');
+      inputEl.value = mdFromTsv; 
+      setStatus('检测到表格 (TSV) · 已转换为 Markdown'); 
+      customHandled = true;
+      return; 
+    }
   }
-  // 否则默认（纯文本）
-  if (text){ e.preventDefault(); inputEl.value = text; setStatus('已粘贴文本'); }
+  
+  // Handle plain text paste with clearing behavior
+  if (text){ 
+    e.preventDefault(); 
+    // 需求：粘贴前先清空输入与输出
+    inputEl.value = '';
+    outputRaw = '';
+    renderMarkdown('');
+    inputEl.value = text; 
+    setStatus('已粘贴文本'); 
+    customHandled = true;
+  }
+  
+  // If no custom handling occurred, let the browser handle the default paste
+  // (this preserves normal copy/paste functionality when clipboard data access fails)
 });
 
 (function init(){
