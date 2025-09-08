@@ -103,8 +103,16 @@ function insertAtCursor(textarea, text){
 // 替换整个输入内容并保留撤销栈
 function replaceInputText(text){
   inputEl.focus();
-  // setRangeText 会创建撤销点并触发 input 事件
-  inputEl.setRangeText(text, 0, inputEl.value.length, 'end');
+  // 选中全部内容后使用 insertText 保留撤销栈
+  inputEl.select();
+  const ok = document.execCommand('insertText', false, text);
+  if (!ok) {
+    // fallback: setRangeText（某些环境 insertText 可能不可用）
+    inputEl.setRangeText(text, 0, inputEl.value.length, 'end');
+  }
+  // 光标置于末尾
+  const pos = inputEl.value.length;
+  inputEl.setSelectionRange(pos, pos);
 }
 
 // 粘贴模式：'plain' 或 'markdown'
