@@ -43,7 +43,7 @@ function copyDir(srcDir, destDir){
 }
 
 function copyStatics(){
-  const staticFiles = ['index.html', 'default.prompt',"favicon.png",'manifest.webmanifest','sw.js'];
+  const staticFiles = ['index.html', 'default.prompt',"favicon.png",'manifest.webmanifest','sw.js','js/theme-init.js'];
   for (const f of staticFiles){ const src = path.join(root, f); if (fs.existsSync(src)) copyFile(src, path.join(distDir, f)); }
   copyDir(path.join(root,'assets'), path.join(distDir,'assets'));
   copyDir(path.join(root,'css'), path.join(distDir,'css'));
