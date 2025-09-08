@@ -106,11 +106,7 @@ function replaceInputText(text){
   // 使用 setRangeText 替换并手动触发 input 事件以保持撤销栈
   inputEl.setRangeText(text, 0, inputEl.value.length, 'end');
   try {
-    inputEl.dispatchEvent(new InputEvent('input', {
-      bubbles: true,
-      // insertReplacementText 更准确地描述此操作
-      inputType: 'insertReplacementText'
-    }));
+    inputEl.dispatchEvent(new InputEvent('input', { bubbles: true }));
   } catch (e) {
     // 某些旧环境不支持 InputEvent 构造器
     inputEl.dispatchEvent(new Event('input', { bubbles: true }));
