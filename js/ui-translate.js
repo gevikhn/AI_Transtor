@@ -103,12 +103,17 @@ function insertAtCursor(textarea, text){
 // 替换整个输入内容并保留撤销栈
 function replaceInputText(text){
   inputEl.focus();
-  // 选中全部内容后使用 insertText 保留撤销栈
-  inputEl.select();
-  const ok = document.execCommand('insertText', false, text);
-  if (!ok) {
-    // fallback: setRangeText（某些环境 insertText 可能不可用）
-    inputEl.setRangeText(text, 0, inputEl.value.length, 'end');
+  // 使用 setRangeText 替换并手动触发 input 事件以保持撤销栈
+  inputEl.setRangeText(text, 0, inputEl.value.length, 'end');
+  try {
+    inputEl.dispatchEvent(new InputEvent('input', {
+      bubbles: true,
+      data: text,
+      inputType: 'insertText'
+    }));
+  } catch {
+    // 某些旧环境不支持 InputEvent 构造器
+    inputEl.dispatchEvent(new Event('input', { bubbles: true }));
   }
   // 光标置于末尾
   const pos = inputEl.value.length;
