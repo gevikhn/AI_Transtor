@@ -250,7 +250,7 @@ window.addEventListener('keydown', e=>{
 inputEl.addEventListener('dragover', e=>{ e.preventDefault(); });
 inputEl.addEventListener('drop', e=>{
   e.preventDefault();
-  // 需求：拖拽前先清空输入与输出
+  // 需求：拖拽前清空输出；输入通过 replaceInput 覆盖以保留撤销
   outputRaw = '';
   renderMarkdown('');
   const dt = e.dataTransfer;
@@ -288,7 +288,7 @@ inputEl.addEventListener('drop', e=>{
 // 粘贴事件：保留 Markdown（或将 HTML 转为 Markdown）
 inputEl.addEventListener('paste', (e)=>{
   const cd = e.clipboardData; if (!cd) return;
-  // 需求：粘贴前先清空输入与输出
+  // 需求：粘贴前清空输出；输入通过 replaceInput 覆盖以保留撤销
   outputRaw = '';
   renderMarkdown('');
   const mode = getPasteMode();
