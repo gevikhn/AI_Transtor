@@ -89,19 +89,22 @@ function tsvToMarkdownIfTable(text){
   return [toLine(header), toLine(sep), ...body.map(toLine)].join('\n');
 }
 
-// 替换输入框全部文本并尽量保留撤销栈
+// 替换输入框全部文本并保留撤销栈
 function replaceInput(text){
   inputEl.focus();
-  inputEl.select();
-  let ok = false;
-  try {
-    ok = document.execCommand('insertText', false, text);
-  } catch (e) {
-    ok = false;
+  // 先选中全部内容，再通过 setRangeText 替换以保留历史记录
+  const start = 0;
+  const end = inputEl.value.length;
+  if (typeof inputEl.setRangeText === 'function') {
+    inputEl.setSelectionRange(start, end);
+    inputEl.setRangeText(text, start, end, 'end');
+  } else {
+    // 旧环境兜底
+    inputEl.value = text;
+    inputEl.selectionStart = inputEl.selectionEnd = text.length;
   }
-  if (!ok) {
-    inputEl.setRangeText(text, 0, inputEl.value.length, 'end');
-  }
+  // 触发 input 事件以通知监听者
+  inputEl.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 // 粘贴模式：'plain' 或 'markdown'
