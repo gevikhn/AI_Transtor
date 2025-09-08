@@ -109,7 +109,8 @@ function replaceInputText(text){
     inputEl.dispatchEvent(new InputEvent('input', {
       bubbles: true,
       data: text,
-      inputType: 'insertText'
+      // insertReplacementText 更准确地描述此操作
+      inputType: 'insertReplacementText'
     }));
   } catch {
     // 某些旧环境不支持 InputEvent 构造器
