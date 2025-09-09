@@ -276,30 +276,38 @@ inputEl.addEventListener('drop', e=>{
 });
 
 // 使用 Quill Clipboard 模块监听并处理粘贴
-const origOnPaste = clipboard.onPaste.bind(clipboard);
-clipboard.onPaste = (e)=>{
-  if (!e.clipboardData){
-    origOnPaste(e);
-    return;
-  }
+clipboard.onPaste = async (e)=>{
   e.preventDefault();
   e.stopPropagation();
   const cd = e.clipboardData;
   const mode = getPasteMode();
-  const text = cd.getData('text/plain');
-  let finalText = text;
+  let text = '';
+  let finalText = '';
   let statusMsg = '已粘贴文本';
-  if (mode === 'markdown'){
-    const md = cd.getData('text/markdown');
-    if (md){ finalText = md; statusMsg = '已粘贴 Markdown'; }
-    else {
-      const html = cd.getData('text/html');
-      if (html){ finalText = turndown.turndown(html); statusMsg = '已从 HTML 转 Markdown'; }
+  if (cd){
+    text = cd.getData('text/plain');
+    finalText = text;
+    if (mode === 'markdown'){
+      const md = cd.getData('text/markdown');
+      if (md){ finalText = md; statusMsg = '已粘贴 Markdown'; }
       else {
-        const mdFromTsv = tsvToMarkdownIfTable(text);
-        if (mdFromTsv){ finalText = mdFromTsv; statusMsg = '检测到表格 (TSV) · 已转换为 Markdown'; }
+        const html = cd.getData('text/html');
+        if (html){ finalText = turndown.turndown(html); statusMsg = '已从 HTML 转 Markdown'; }
+        else {
+          const mdFromTsv = tsvToMarkdownIfTable(text);
+          if (mdFromTsv){ finalText = mdFromTsv; statusMsg = '检测到表格 (TSV) · 已转换为 Markdown'; }
+        }
       }
     }
+  } else if (navigator.clipboard) {
+    try {
+      text = await navigator.clipboard.readText();
+      finalText = text;
+    } catch {
+      return;
+    }
+  } else {
+    return;
   }
   const range = inputEditor.getSelection(true);
   if (range){
