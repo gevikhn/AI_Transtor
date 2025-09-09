@@ -217,6 +217,16 @@ function resetButton(){
 btnTranslate.addEventListener('click', doTranslate);
 btnClear.addEventListener('click', ()=>{ setInputText(''); outputRaw=''; renderMarkdown(''); setStatus('已清空'); inputEditor.focus(); });
 btnCopy.addEventListener('click', async()=>{ if (!outputRaw) return; const ok = await copyToClipboard(outputRaw); setStatus(ok?'已复制':'复制失败'); });
+outputView.addEventListener('keydown', e=>{
+  if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='a'){
+    e.preventDefault();
+    const sel = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(outputView);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+});
 
 window.addEventListener('keydown', e=>{
   if ((e.metaKey||e.ctrlKey) && e.key==='Enter'){ doTranslate(); }
