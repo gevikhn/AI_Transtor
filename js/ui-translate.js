@@ -18,7 +18,7 @@ const inputEditor = new Quill('#inputText', {
 const inputEl = inputEditor.root;
 inputEl.setAttribute('spellcheck','false');
 const clipboard = inputEditor.clipboard;
-let pendingPaste = null;
+let skipNextMatcher = false;
 function getInputText(){ return inputEditor.getText(); }
 function setInputText(text){ inputEditor.setText(text); }
 const outputView = document.getElementById('outputView');
@@ -278,45 +278,32 @@ inputEl.addEventListener('drop', e=>{
 });
 
 // 使用 Quill Clipboard 模块处理粘贴
-inputEl.addEventListener('paste', e => {
-  const cd = e.clipboardData;
+clipboard.addMatcher(Node.TEXT_NODE, (node, delta) => {
+  if (skipNextMatcher) return new Delta();
+  skipNextMatcher = true;
+  setTimeout(() => { skipNextMatcher = false; }, 0);
+
   const mode = getPasteMode();
-  if (!cd) return;
-  let text = cd.getData('text/plain') || '';
+  const text = clipboard.container.innerText || '';
   let finalText = text;
   let statusMsg = '已粘贴文本';
+
   if (mode === 'markdown') {
-    const md = cd.getData('text/markdown');
-    if (md) {
-      finalText = md;
-      statusMsg = '已粘贴 Markdown';
+    const html = clipboard.container.innerHTML;
+    if (html && html.trim() && html !== `<p>${text}</p>`) {
+      finalText = turndown.turndown(html);
+      statusMsg = '已从 HTML 转 Markdown';
     } else {
-      const html = cd.getData('text/html');
-      if (html) {
-        finalText = turndown.turndown(html);
-        statusMsg = '已从 HTML 转 Markdown';
-      } else {
-        const mdFromTsv = tsvToMarkdownIfTable(text);
-        if (mdFromTsv) {
-          finalText = mdFromTsv;
-          statusMsg = '检测到表格 (TSV) · 已转换为 Markdown';
-        }
+      const mdFromTsv = tsvToMarkdownIfTable(text);
+      if (mdFromTsv) {
+        finalText = mdFromTsv;
+        statusMsg = '检测到表格 (TSV) · 已转换为 Markdown';
       }
     }
   }
-  pendingPaste = { text: finalText, status: statusMsg, handled: false };
-}, true);
 
-clipboard.addMatcher(Node.TEXT_NODE, (node, delta) => {
-  if (pendingPaste && !pendingPaste.handled) {
-    pendingPaste.handled = true;
-    const text = pendingPaste.text.replace(/\s+/g, ' ');
-    setStatus(pendingPaste.status);
-    pendingPaste = null;
-    return new Delta().insert(text);
-  }
-  const text = node.data.replace(/\s+/g, ' ');
-  return new Delta().insert(text);
+  setStatus(statusMsg);
+  return new Delta().insert(finalText.replace(/\s+/g, ' '));
 });
 
 (function init(){
