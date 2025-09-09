@@ -18,7 +18,6 @@ const inputEditor = new Quill('#inputText', {
 const inputEl = inputEditor.root;
 inputEl.setAttribute('spellcheck','false');
 const clipboard = inputEditor.clipboard;
-let skipNextMatcher = false;
 function getInputText(){ return inputEditor.getText(); }
 function setInputText(text){ inputEditor.setText(text); }
 const outputView = document.getElementById('outputView');
@@ -278,33 +277,38 @@ inputEl.addEventListener('drop', e=>{
 });
 
 // 使用 Quill Clipboard 模块处理粘贴
-clipboard.addMatcher(Node.TEXT_NODE, (node, delta) => {
-  if (skipNextMatcher) return new Delta();
-  skipNextMatcher = true;
-  setTimeout(() => { skipNextMatcher = false; }, 0);
+clipboard.onPaste = (e) => {
+  e.preventDefault();
+  e.stopPropagation();
 
   const mode = getPasteMode();
-  const text = clipboard.container.innerText || '';
-  let finalText = text;
+  let text = e.clipboardData?.getData('text/plain') || '';
   let statusMsg = '已粘贴文本';
 
   if (mode === 'markdown') {
-    const html = clipboard.container.innerHTML;
-    if (html && html.trim() && html !== `<p>${text}</p>`) {
-      finalText = turndown.turndown(html);
+    const html = e.clipboardData?.getData('text/html');
+    if (html && html.trim()) {
+      text = turndown.turndown(html);
       statusMsg = '已从 HTML 转 Markdown';
     } else {
       const mdFromTsv = tsvToMarkdownIfTable(text);
       if (mdFromTsv) {
-        finalText = mdFromTsv;
+        text = mdFromTsv;
         statusMsg = '检测到表格 (TSV) · 已转换为 Markdown';
       }
     }
   }
 
+  text = text.replace(/\s+/g, ' ');
+  const range = inputEditor.getSelection(true);
+  const index = range ? range.index : inputEditor.getLength();
+  const length = range ? range.length : 0;
+  const delta = new Delta().retain(index).delete(length).insert(text);
+  inputEditor.updateContents(delta, 'user');
+  inputEditor.setSelection(index + text.length, 0, 'silent');
+
   setStatus(statusMsg);
-  return new Delta().insert(finalText.replace(/\s+/g, ' '));
-});
+};
 
 (function init(){
   const cfg = loadConfig();
