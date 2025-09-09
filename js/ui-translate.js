@@ -16,6 +16,7 @@ const inputEditor = new Quill('#inputText', {
 });
 const inputEl = inputEditor.root;
 inputEl.setAttribute('spellcheck','false');
+const clipboard = inputEditor.clipboard;
 function getInputText(){ return inputEditor.getText(); }
 function setInputText(text){ inputEditor.setText(text); }
 const outputView = document.getElementById('outputView');
@@ -274,11 +275,16 @@ inputEl.addEventListener('drop', e=>{
   if (text){ setInputText(text); setStatus('文本已载入'); }
 });
 
-// 粘贴事件：保留 Markdown（或将 HTML 转为 Markdown）
-inputEl.addEventListener('paste', (e)=>{
+// 使用 Quill Clipboard 模块监听并处理粘贴
+const origOnPaste = clipboard.onPaste.bind(clipboard);
+clipboard.onPaste = (e)=>{
+  if (!e.clipboardData){
+    origOnPaste(e);
+    return;
+  }
   e.preventDefault();
   e.stopPropagation();
-  const cd = e.clipboardData; if (!cd) return;
+  const cd = e.clipboardData;
   const mode = getPasteMode();
   const text = cd.getData('text/plain');
   let finalText = text;
@@ -306,7 +312,7 @@ inputEl.addEventListener('paste', (e)=>{
     inputEditor.setSelection(len - 1 + finalText.length, 0, 'user');
   }
   setStatus(statusMsg);
-}, true);
+};
 
 (function init(){
   const cfg = loadConfig();
