@@ -276,8 +276,9 @@ inputEl.addEventListener('drop', e=>{
 
 // 粘贴事件：保留 Markdown（或将 HTML 转为 Markdown）
 inputEl.addEventListener('paste', (e)=>{
-  const cd = e.clipboardData; if (!cd) return;
   e.preventDefault();
+  e.stopPropagation();
+  const cd = e.clipboardData; if (!cd) return;
   const mode = getPasteMode();
   const text = cd.getData('text/plain');
   let finalText = text;
