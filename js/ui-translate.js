@@ -6,6 +6,7 @@ import TurndownService from 'turndown';
 import { gfm } from 'turndown-plugin-gfm';
 import MarkdownIt from 'markdown-it';
 import Quill from 'quill';
+const Delta = Quill.import('delta');
 
 const langSelect = document.getElementById('langSelect');
 const serviceSelect = document.getElementById('serviceSelect');
@@ -17,6 +18,7 @@ const inputEditor = new Quill('#inputText', {
 const inputEl = inputEditor.root;
 inputEl.setAttribute('spellcheck','false');
 const clipboard = inputEditor.clipboard;
+let pendingPaste = null;
 function getInputText(){ return inputEditor.getText(); }
 function setInputText(text){ inputEditor.setText(text); }
 const outputView = document.getElementById('outputView');
@@ -275,52 +277,47 @@ inputEl.addEventListener('drop', e=>{
   if (text){ setInputText(text); setStatus('文本已载入'); }
 });
 
-// 使用 Quill Clipboard 模块监听并处理粘贴
-clipboard.onPaste = async (e)=>{
-  e.preventDefault();
-  e.stopPropagation();
+// 使用 Quill Clipboard 模块处理粘贴
+inputEl.addEventListener('paste', e => {
   const cd = e.clipboardData;
   const mode = getPasteMode();
-  let text = '';
-  let finalText = '';
+  if (!cd) return;
+  let text = cd.getData('text/plain') || '';
+  let finalText = text;
   let statusMsg = '已粘贴文本';
-  if (cd){
-    text = cd.getData('text/plain');
-    finalText = text;
-    if (mode === 'markdown'){
-      const md = cd.getData('text/markdown');
-      if (md){ finalText = md; statusMsg = '已粘贴 Markdown'; }
-      else {
-        const html = cd.getData('text/html');
-        if (html){ finalText = turndown.turndown(html); statusMsg = '已从 HTML 转 Markdown'; }
-        else {
-          const mdFromTsv = tsvToMarkdownIfTable(text);
-          if (mdFromTsv){ finalText = mdFromTsv; statusMsg = '检测到表格 (TSV) · 已转换为 Markdown'; }
+  if (mode === 'markdown') {
+    const md = cd.getData('text/markdown');
+    if (md) {
+      finalText = md;
+      statusMsg = '已粘贴 Markdown';
+    } else {
+      const html = cd.getData('text/html');
+      if (html) {
+        finalText = turndown.turndown(html);
+        statusMsg = '已从 HTML 转 Markdown';
+      } else {
+        const mdFromTsv = tsvToMarkdownIfTable(text);
+        if (mdFromTsv) {
+          finalText = mdFromTsv;
+          statusMsg = '检测到表格 (TSV) · 已转换为 Markdown';
         }
       }
     }
-  } else if (navigator.clipboard) {
-    try {
-      text = await navigator.clipboard.readText();
-      finalText = text;
-    } catch {
-      return;
-    }
-  } else {
-    return;
   }
-  const range = inputEditor.getSelection(true);
-  if (range){
-    inputEditor.deleteText(range.index, range.length, 'user');
-    inputEditor.insertText(range.index, finalText, 'user');
-    inputEditor.setSelection(range.index + finalText.length, 0, 'user');
-  } else {
-    const len = inputEditor.getLength();
-    inputEditor.insertText(len - 1, finalText, 'user');
-    inputEditor.setSelection(len - 1 + finalText.length, 0, 'user');
+  pendingPaste = { text: finalText, status: statusMsg, handled: false };
+}, true);
+
+clipboard.addMatcher(Node.TEXT_NODE, (node, delta) => {
+  if (pendingPaste && !pendingPaste.handled) {
+    pendingPaste.handled = true;
+    const text = pendingPaste.text.replace(/\s+/g, ' ');
+    setStatus(pendingPaste.status);
+    pendingPaste = null;
+    return new Delta().insert(text);
   }
-  setStatus(statusMsg);
-};
+  const text = node.data.replace(/\s+/g, ' ');
+  return new Delta().insert(text);
+});
 
 (function init(){
   const cfg = loadConfig();
