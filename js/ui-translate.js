@@ -5,10 +5,19 @@ import { copyToClipboard, estimateTokens } from './utils.js';
 import TurndownService from 'turndown';
 import { gfm } from 'turndown-plugin-gfm';
 import MarkdownIt from 'markdown-it';
+import Quill from 'quill';
 
 const langSelect = document.getElementById('langSelect');
 const serviceSelect = document.getElementById('serviceSelect');
-const inputEl = document.getElementById('inputText');
+const inputEditor = new Quill('#inputText', {
+  modules: { toolbar: false },
+  theme: 'snow',
+  placeholder: '在此粘贴或拖拽待翻译文本（含 .txt 文件）'
+});
+const inputEl = inputEditor.root;
+inputEl.setAttribute('spellcheck','false');
+function getInputText(){ return inputEditor.getText(); }
+function setInputText(text){ inputEditor.setText(text); }
 const outputView = document.getElementById('outputView');
 const statusBar = document.getElementById('statusBar');
 const btnTranslate = document.getElementById('btnTranslate');
@@ -76,17 +85,6 @@ function tsvToMarkdownIfTable(text){
   return [toLine(header), toLine(sep), ...body.map(toLine)].join('\n');
 }
 
-// 在 textarea 光标处插入文本
-function insertAtCursor(textarea, text){
-  const start = textarea.selectionStart ?? textarea.value.length;
-  const end = textarea.selectionEnd ?? textarea.value.length;
-  const before = textarea.value.slice(0, start);
-  const after = textarea.value.slice(end);
-  textarea.value = before + text + after;
-  const pos = start + text.length;
-  textarea.selectionStart = textarea.selectionEnd = pos;
-}
-
 // 粘贴模式：'plain' 或 'markdown'
 const PASTE_MODE_KEY = 'AI_TR_PASTE_MODE';
 function getPasteMode(){ const v = localStorage.getItem(PASTE_MODE_KEY); return v==='markdown' ? 'markdown' : 'plain'; }
@@ -113,7 +111,7 @@ function bindPasteToggle(){
 
 async function doTranslate(){
   if (streaming){ cancelStream(); return; }
-  const text = inputEl.value.trim();
+  const text = getInputText().trim();
   if (!text){ setStatus('请输入内容'); return; }
   const cfg = loadConfig();
   const maxRetries = Number(cfg.retries||0);
@@ -217,12 +215,12 @@ function resetButton(){
 }
 
 btnTranslate.addEventListener('click', doTranslate);
-btnClear.addEventListener('click', ()=>{ inputEl.value=''; outputRaw=''; renderMarkdown(''); setStatus('已清空'); inputEl.focus(); });
+btnClear.addEventListener('click', ()=>{ setInputText(''); outputRaw=''; renderMarkdown(''); setStatus('已清空'); inputEditor.focus(); });
 btnCopy.addEventListener('click', async()=>{ if (!outputRaw) return; const ok = await copyToClipboard(outputRaw); setStatus(ok?'已复制':'复制失败'); });
 
 window.addEventListener('keydown', e=>{
   if ((e.metaKey||e.ctrlKey) && e.key==='Enter'){ doTranslate(); }
-  else if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='l'){ inputEl.focus(); }
+  else if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='l'){ inputEditor.focus(); }
   else if (e.key==='Escape'){ if (streaming) cancelStream(); }
 });
 
@@ -231,7 +229,7 @@ inputEl.addEventListener('dragover', e=>{ e.preventDefault(); });
 inputEl.addEventListener('drop', e=>{
   e.preventDefault();
   // 需求：拖拽前先清空输入与输出
-  inputEl.value = '';
+  setInputText('');
   outputRaw = '';
   renderMarkdown('');
   const dt = e.dataTransfer;
@@ -246,7 +244,7 @@ inputEl.addEventListener('drop', e=>{
       f.name.endsWith('.markdown')
     ){
       const reader = new FileReader();
-      reader.onload = ()=>{ inputEl.value = reader.result; setStatus('文件已载入'); };
+      reader.onload = ()=>{ setInputText(reader.result); setStatus('文件已载入'); };
       reader.readAsText(f);
     } else {
       setStatus('仅支持 .txt / .md');
@@ -257,35 +255,35 @@ inputEl.addEventListener('drop', e=>{
   const text = dt.getData('text/plain');
   if (mode==='markdown'){
     const md = dt.getData('text/markdown');
-    if (md){ inputEl.value = md; setStatus('Markdown 已载入'); return; }
+    if (md){ setInputText(md); setStatus('Markdown 已载入'); return; }
     const html = dt.getData('text/html');
-    if (html){ const md2 = turndown.turndown(html); inputEl.value = md2; setStatus('HTML 已转换为 Markdown'); return; }
+    if (html){ const md2 = turndown.turndown(html); setInputText(md2); setStatus('HTML 已转换为 Markdown'); return; }
   const mdFromTsv = tsvToMarkdownIfTable(text);
-  if (mdFromTsv){ inputEl.value = mdFromTsv; setStatus('检测到表格 (TSV) · 已转换为 Markdown'); return; }
+  if (mdFromTsv){ setInputText(mdFromTsv); setStatus('检测到表格 (TSV) · 已转换为 Markdown'); return; }
   }
-  if (text){ inputEl.value = text; setStatus('文本已载入'); }
+  if (text){ setInputText(text); setStatus('文本已载入'); }
 });
 
 // 粘贴事件：保留 Markdown（或将 HTML 转为 Markdown）
 inputEl.addEventListener('paste', (e)=>{
   const cd = e.clipboardData; if (!cd) return;
   // 需求：粘贴前先清空输入与输出
-  inputEl.value = '';
+  setInputText('');
   outputRaw = '';
   renderMarkdown('');
   const mode = getPasteMode();
   const text = cd.getData('text/plain');
   if (mode==='markdown'){
     const md = cd.getData('text/markdown');
-    if (md){ e.preventDefault(); inputEl.value = md; setStatus('已粘贴 Markdown'); return; }
+    if (md){ e.preventDefault(); setInputText(md); setStatus('已粘贴 Markdown'); return; }
     const html = cd.getData('text/html');
-    if (html){ e.preventDefault(); const md2 = turndown.turndown(html); inputEl.value = md2; setStatus('已从 HTML 转 Markdown'); return; }
+    if (html){ e.preventDefault(); const md2 = turndown.turndown(html); setInputText(md2); setStatus('已从 HTML 转 Markdown'); return; }
   const mdFromTsv = tsvToMarkdownIfTable(text);
-  if (mdFromTsv){ e.preventDefault(); inputEl.value = mdFromTsv; setStatus('检测到表格 (TSV) · 已转换为 Markdown'); return; }
+  if (mdFromTsv){ e.preventDefault(); setInputText(mdFromTsv); setStatus('检测到表格 (TSV) · 已转换为 Markdown'); return; }
   }
   // 否则默认（纯文本）
-  if (text){ e.preventDefault(); inputEl.value = text; setStatus('已粘贴文本'); }
-});
+  if (text){ e.preventDefault(); setInputText(text); setStatus('已粘贴文本'); }
+}, true);
 
 (function init(){
   const cfg = loadConfig();
