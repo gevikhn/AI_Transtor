@@ -80,11 +80,7 @@ function tsvToMarkdownIfTable(text){
 function insertAtCursor(textarea, text){
   const start = textarea.selectionStart ?? textarea.value.length;
   const end = textarea.selectionEnd ?? textarea.value.length;
-  const before = textarea.value.slice(0, start);
-  const after = textarea.value.slice(end);
-  textarea.value = before + text + after;
-  const pos = start + text.length;
-  textarea.selectionStart = textarea.selectionEnd = pos;
+  textarea.setRangeText(text, start, end, 'end');
 }
 
 // 粘贴模式：'plain' 或 'markdown'
@@ -228,26 +224,30 @@ window.addEventListener('keydown', e=>{
 
 // 拖拽 txt 文件或文本内容
 inputEl.addEventListener('dragover', e=>{ e.preventDefault(); });
-inputEl.addEventListener('drop', e=>{
+
+// 使用 beforeinput 以便保留撤销栈
+inputEl.addEventListener('beforeinput', (e)=>{
+  if (e.inputType!=='insertFromPaste' && e.inputType!=='insertFromDrop') return;
+  const dt = e.dataTransfer || e.clipboardData; if (!dt) return;
   e.preventDefault();
-  // 需求：拖拽前先清空输入与输出
-  inputEl.value = '';
+  // 粘贴/拖拽前先清空输出
   outputRaw = '';
   renderMarkdown('');
-  const dt = e.dataTransfer;
-  const f = dt.files[0];
-  if (f){
+  const replace = (text)=>{ inputEl.setRangeText(text, 0, inputEl.value.length, 'end'); };
+  const isDrop = e.inputType === 'insertFromDrop';
+  const file = dt.files && dt.files[0];
+  if (file){
     if (
-      f.type === 'text/plain' ||
-      f.type === 'text/markdown' ||
-      f.type === 'text/x-markdown' ||
-      f.name.endsWith('.txt') ||
-      f.name.endsWith('.md') ||
-      f.name.endsWith('.markdown')
+      file.type === 'text/plain' ||
+      file.type === 'text/markdown' ||
+      file.type === 'text/x-markdown' ||
+      file.name.endsWith('.txt') ||
+      file.name.endsWith('.md') ||
+      file.name.endsWith('.markdown')
     ){
       const reader = new FileReader();
-      reader.onload = ()=>{ inputEl.value = reader.result; setStatus('文件已载入'); };
-      reader.readAsText(f);
+      reader.onload = ()=>{ replace(reader.result); setStatus('文件已载入'); };
+      reader.readAsText(file);
     } else {
       setStatus('仅支持 .txt / .md');
     }
@@ -257,34 +257,13 @@ inputEl.addEventListener('drop', e=>{
   const text = dt.getData('text/plain');
   if (mode==='markdown'){
     const md = dt.getData('text/markdown');
-    if (md){ inputEl.value = md; setStatus('Markdown 已载入'); return; }
+    if (md){ replace(md); setStatus(isDrop ? 'Markdown 已载入' : '已粘贴 Markdown'); return; }
     const html = dt.getData('text/html');
-    if (html){ const md2 = turndown.turndown(html); inputEl.value = md2; setStatus('HTML 已转换为 Markdown'); return; }
-  const mdFromTsv = tsvToMarkdownIfTable(text);
-  if (mdFromTsv){ inputEl.value = mdFromTsv; setStatus('检测到表格 (TSV) · 已转换为 Markdown'); return; }
+    if (html){ const md2 = turndown.turndown(html); replace(md2); setStatus(isDrop ? 'HTML 已转换为 Markdown' : '已从 HTML 转 Markdown'); return; }
+    const mdFromTsv = tsvToMarkdownIfTable(text);
+    if (mdFromTsv){ replace(mdFromTsv); setStatus('检测到表格 (TSV) · 已转换为 Markdown'); return; }
   }
-  if (text){ inputEl.value = text; setStatus('文本已载入'); }
-});
-
-// 粘贴事件：保留 Markdown（或将 HTML 转为 Markdown）
-inputEl.addEventListener('paste', (e)=>{
-  const cd = e.clipboardData; if (!cd) return;
-  // 需求：粘贴前先清空输入与输出
-  inputEl.value = '';
-  outputRaw = '';
-  renderMarkdown('');
-  const mode = getPasteMode();
-  const text = cd.getData('text/plain');
-  if (mode==='markdown'){
-    const md = cd.getData('text/markdown');
-    if (md){ e.preventDefault(); inputEl.value = md; setStatus('已粘贴 Markdown'); return; }
-    const html = cd.getData('text/html');
-    if (html){ e.preventDefault(); const md2 = turndown.turndown(html); inputEl.value = md2; setStatus('已从 HTML 转 Markdown'); return; }
-  const mdFromTsv = tsvToMarkdownIfTable(text);
-  if (mdFromTsv){ e.preventDefault(); inputEl.value = mdFromTsv; setStatus('检测到表格 (TSV) · 已转换为 Markdown'); return; }
-  }
-  // 否则默认（纯文本）
-  if (text){ e.preventDefault(); inputEl.value = text; setStatus('已粘贴文本'); }
+  if (text){ replace(text); setStatus(isDrop ? '文本已载入' : '已粘贴文本'); }
 });
 
 (function init(){
