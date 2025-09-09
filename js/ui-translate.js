@@ -6,7 +6,7 @@ import TurndownService from 'turndown';
 import { gfm } from 'turndown-plugin-gfm';
 import MarkdownIt from 'markdown-it';
 import Quill from 'quill';
-const Delta = Quill.import('delta');
+import Delta from 'quill-delta';
 
 const langSelect = document.getElementById('langSelect');
 const serviceSelect = document.getElementById('serviceSelect');
