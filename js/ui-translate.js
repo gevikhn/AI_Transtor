@@ -267,22 +267,34 @@ inputEl.addEventListener('drop', e=>{
 // 粘贴事件：保留 Markdown（或将 HTML 转为 Markdown）
 inputEl.addEventListener('paste', (e)=>{
   const cd = e.clipboardData; if (!cd) return;
-  // 需求：粘贴前先清空输入与输出
-  setInputText('');
-  outputRaw = '';
-  renderMarkdown('');
+  e.preventDefault();
   const mode = getPasteMode();
   const text = cd.getData('text/plain');
-  if (mode==='markdown'){
+  let finalText = text;
+  let statusMsg = '已粘贴文本';
+  if (mode === 'markdown'){
     const md = cd.getData('text/markdown');
-    if (md){ e.preventDefault(); setInputText(md); setStatus('已粘贴 Markdown'); return; }
-    const html = cd.getData('text/html');
-    if (html){ e.preventDefault(); const md2 = turndown.turndown(html); setInputText(md2); setStatus('已从 HTML 转 Markdown'); return; }
-  const mdFromTsv = tsvToMarkdownIfTable(text);
-  if (mdFromTsv){ e.preventDefault(); setInputText(mdFromTsv); setStatus('检测到表格 (TSV) · 已转换为 Markdown'); return; }
+    if (md){ finalText = md; statusMsg = '已粘贴 Markdown'; }
+    else {
+      const html = cd.getData('text/html');
+      if (html){ finalText = turndown.turndown(html); statusMsg = '已从 HTML 转 Markdown'; }
+      else {
+        const mdFromTsv = tsvToMarkdownIfTable(text);
+        if (mdFromTsv){ finalText = mdFromTsv; statusMsg = '检测到表格 (TSV) · 已转换为 Markdown'; }
+      }
+    }
   }
-  // 否则默认（纯文本）
-  if (text){ e.preventDefault(); setInputText(text); setStatus('已粘贴文本'); }
+  const range = inputEditor.getSelection(true);
+  if (range){
+    inputEditor.deleteText(range.index, range.length, 'user');
+    inputEditor.insertText(range.index, finalText, 'user');
+    inputEditor.setSelection(range.index + finalText.length, 0, 'user');
+  } else {
+    const len = inputEditor.getLength();
+    inputEditor.insertText(len - 1, finalText, 'user');
+    inputEditor.setSelection(len - 1 + finalText.length, 0, 'user');
+  }
+  setStatus(statusMsg);
 }, true);
 
 (function init(){
