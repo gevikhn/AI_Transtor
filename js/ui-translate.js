@@ -1,14 +1,26 @@
 // ui-translate.js - 翻译页逻辑 (v0.1 非流式)
-import { loadConfig, setActiveService } from './config.js';
+import { loadConfig, setActiveService, getActiveConfig } from './config.js';
+import { renderTemplate } from './prompt.js';
 import { translateOnce, translateStream } from './api.js';
 import { copyToClipboard, estimateTokens } from './utils.js';
 import TurndownService from 'turndown';
 import { gfm } from 'turndown-plugin-gfm';
 import MarkdownIt from 'markdown-it';
+import Quill from 'quill';
+import Delta from 'quill-delta';
 
 const langSelect = document.getElementById('langSelect');
 const serviceSelect = document.getElementById('serviceSelect');
-const inputEl = document.getElementById('inputText');
+const inputEditor = new Quill('#inputText', {
+  modules: { toolbar: false },
+  theme: 'snow',
+  placeholder: '在此粘贴或拖拽待翻译文本（含 .txt 文件）'
+});
+const inputEl = inputEditor.root;
+inputEl.setAttribute('spellcheck','false');
+const clipboard = inputEditor.clipboard;
+function getInputText(){ return inputEditor.getText(); }
+function setInputText(text){ inputEditor.setText(text); }
 const outputView = document.getElementById('outputView');
 const statusBar = document.getElementById('statusBar');
 const btnTranslate = document.getElementById('btnTranslate');
@@ -45,6 +57,12 @@ let currentAbort = null;
 let streaming = false;
 let outputRaw = '';
 
+// 输入大小限制（可按需调整）
+// 文件字节上限：2 MB；文本字符上限：200,000 字符
+const MAX_FILE_BYTES = 2 * 1024 * 1024; // 2MB
+const MAX_INPUT_CHARS = 200000; // 200k chars
+function humanMiB(bytes){ return (bytes/1024/1024).toFixed(1); }
+
 // Markdown 工具
 const turndown = new TurndownService({ headingStyle:'atx', codeBlockStyle:'fenced' });
 // 启用 GFM 支持（表格/删除线/任务列表等）
@@ -55,6 +73,23 @@ function renderMarkdown(text){
   if (!outputView) return;
   if (!text){ outputView.innerHTML=''; return; }
   outputView.innerHTML = mdRender.render(text);
+}
+
+// Token 计数：优先使用 gpt-tokenizer，失败则回退估算
+let __encodeFn = null; // lazy-loaded
+async function countTokensAccurate(str){
+  if (!str) return 0;
+  if (!__encodeFn){
+    try {
+      const mod = await import('gpt-tokenizer');
+      __encodeFn = mod.encode || null;
+    } catch { __encodeFn = null; }
+  }
+  if (__encodeFn){
+    try { return __encodeFn(String(str)).length; } catch { /* fallthrough */ }
+  }
+  // 回退：粗略估算（平均 4 字符 ≈ 1 token）
+  return estimateTokens(String(str));
 }
 
 // 轻量 TSV -> Markdown 表格转换（用于无 HTML 时的粘贴/拖拽兜底）
@@ -74,17 +109,6 @@ function tsvToMarkdownIfTable(text){
   const body = rows.slice(1);
   const toLine = arr => `| ${arr.join(' | ')} |`;
   return [toLine(header), toLine(sep), ...body.map(toLine)].join('\n');
-}
-
-// 在 textarea 光标处插入文本
-function insertAtCursor(textarea, text){
-  const start = textarea.selectionStart ?? textarea.value.length;
-  const end = textarea.selectionEnd ?? textarea.value.length;
-  const before = textarea.value.slice(0, start);
-  const after = textarea.value.slice(end);
-  textarea.value = before + text + after;
-  const pos = start + text.length;
-  textarea.selectionStart = textarea.selectionEnd = pos;
 }
 
 // 粘贴模式：'plain' 或 'markdown'
@@ -113,9 +137,34 @@ function bindPasteToggle(){
 
 async function doTranslate(){
   if (streaming){ cancelStream(); return; }
-  const text = inputEl.value.trim();
+  const text = getInputText().trim();
   if (!text){ setStatus('请输入内容'); return; }
-  const cfg = loadConfig();
+  if (text.length > MAX_INPUT_CHARS){
+    setStatus(`输入过大（>${MAX_INPUT_CHARS.toLocaleString()} 字符），请分段处理或精简后再试`);
+    return;
+  }
+  // 读取有效配置（含服务级覆盖）
+  const cfg = getActiveConfig();
+  // 记录一次性的输入 token（后续状态复用）
+  let inTokCached = null;
+  let promptTokCached = null;
+  // Max Tokens 约束：在发送前进行 token 预估，避免超限
+  if (cfg.maxTokens && Number(cfg.maxTokens) > 0){
+    try {
+      const inTok = await countTokensAccurate(text);
+      inTokCached = inTok;
+      const promptText = renderTemplate(cfg.promptTemplate, { text, target_language: langSelect.value });
+      const promptTok = await countTokensAccurate(promptText);
+      promptTokCached = promptTok;
+      // 预留少量提示词/包装开销
+      const overhead = 64;
+      const totalIn = inTok + promptTok + overhead;
+      if (totalIn > Number(cfg.maxTokens)){
+        setStatus(`输入+Prompt 预估约 ${totalIn.toLocaleString()} token（in:${inTok}, prompt:${promptTok}），超过 Max Tokens (${Number(cfg.maxTokens).toLocaleString()})，已取消。`);
+        return;
+      }
+    } catch { /* 忽略计数失败，按无约束继续 */ }
+  }
   const maxRetries = Number(cfg.retries||0);
   outputRaw='';
   renderMarkdown('');
@@ -135,7 +184,10 @@ async function doTranslate(){
   renderMarkdown(outputRaw);
   // 不再持久化输出
         const ms = Math.round(performance.now()-start);
-        setStatus(`完成 ${ms}ms | ~${estimateTokens(result)} token` + (attempt?` | 重试${attempt}`:''));
+  const inTok = inTokCached ?? (inTokCached = await countTokensAccurate(text));
+  const promptText = renderTemplate(cfg.promptTemplate, { text, target_language: langSelect.value });
+  const promptTok = promptTokCached ?? (promptTokCached = await countTokensAccurate(promptText));
+  setStatus(`完成 ${ms}ms | in:${inTok} / prompt:${promptTok} token` + (attempt?` | 重试${attempt}`:''));
         break;
       } catch(e){
         if (e.name==='AbortError'){ setStatus('已取消'); break; }
@@ -155,6 +207,10 @@ async function doTranslate(){
   currentAbort = new AbortController();
   const buffer = { pending:'' };
   let flushScheduled = false;
+  // 流式 token 状态节流，降低频繁计算开销
+  const TOKEN_STATUS_INTERVAL = 200; // ms
+  let lastTokenUpdate = 0;
+  let tokenCalcPending = false;
   const scheduleFlush = ()=>{
     if (flushScheduled) return; flushScheduled = true;
     requestAnimationFrame(()=>{
@@ -172,14 +228,14 @@ async function doTranslate(){
           produced=true; 
             buffer.pending += chunk; 
             scheduleFlush();
-            // 实时 token 估算（输出 + 输入）
-    const outPreviewLen = outputRaw.length + buffer.pending.length;
-            setStatus(`流式中... ~in:${estimateTokens(text)} token / out:${estimateTokens(outPreviewLen+'')} token`);
         }
       }
   if (buffer.pending){ outputRaw += buffer.pending; buffer.pending=''; renderMarkdown(outputRaw); }
       const ms = Math.round(performance.now()-start);
-  setStatus(`完成 ${ms}ms | ~${estimateTokens(outputRaw)} token` + (attempt?` | 重试${attempt}`:''));
+      const inTok = inTokCached ?? (inTokCached = await countTokensAccurate(text));
+      const promptText = renderTemplate(cfg.promptTemplate, { text, target_language: langSelect.value });
+      const promptTok = promptTokCached ?? (promptTokCached = await countTokensAccurate(promptText));
+  setStatus(`完成 ${ms}ms | in:${inTok} / prompt:${promptTok} token` + (attempt?` | 重试${attempt}`:''));
       break;
     } catch(e){
       if (e.name === 'AbortError'){ setStatus('已取消'); break; }
@@ -196,7 +252,10 @@ async function doTranslate(){
           renderMarkdown(outputRaw);
           // 不再持久化输出
           const ms = Math.round(performance.now()-start);
-          setStatus(`回退完成 ${ms}ms | ~${estimateTokens(result)} token`);
+          const inTok2 = inTokCached ?? (inTokCached = await countTokensAccurate(text));
+          const promptText2 = renderTemplate(cfg.promptTemplate, { text, target_language: langSelect.value });
+          const promptTok2 = promptTokCached ?? (promptTokCached = await countTokensAccurate(promptText2));
+          setStatus(`回退完成 ${ms}ms | in:${inTok2} / prompt:${promptTok2} token`);
         } catch(e2){ setStatus(e.message||'流式失败'); }
       } else {
         setStatus(e.message||'流式失败');
@@ -217,12 +276,22 @@ function resetButton(){
 }
 
 btnTranslate.addEventListener('click', doTranslate);
-btnClear.addEventListener('click', ()=>{ inputEl.value=''; outputRaw=''; renderMarkdown(''); setStatus('已清空'); inputEl.focus(); });
+btnClear.addEventListener('click', ()=>{ setInputText(''); outputRaw=''; renderMarkdown(''); setStatus('已清空'); inputEditor.focus(); });
 btnCopy.addEventListener('click', async()=>{ if (!outputRaw) return; const ok = await copyToClipboard(outputRaw); setStatus(ok?'已复制':'复制失败'); });
+outputView.addEventListener('keydown', e=>{
+  if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='a'){
+    e.preventDefault();
+    const sel = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(outputView);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+});
 
 window.addEventListener('keydown', e=>{
   if ((e.metaKey||e.ctrlKey) && e.key==='Enter'){ doTranslate(); }
-  else if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='l'){ inputEl.focus(); }
+  else if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='l'){ inputEditor.focus(); }
   else if (e.key==='Escape'){ if (streaming) cancelStream(); }
 });
 
@@ -231,12 +300,16 @@ inputEl.addEventListener('dragover', e=>{ e.preventDefault(); });
 inputEl.addEventListener('drop', e=>{
   e.preventDefault();
   // 需求：拖拽前先清空输入与输出
-  inputEl.value = '';
+  setInputText('');
   outputRaw = '';
   renderMarkdown('');
   const dt = e.dataTransfer;
   const f = dt.files[0];
   if (f){
+    if (f.size > MAX_FILE_BYTES){
+      setStatus(`文件过大（${humanMiB(f.size)} MiB），上限 ${humanMiB(MAX_FILE_BYTES)} MiB`);
+      return;
+    }
     if (
       f.type === 'text/plain' ||
       f.type === 'text/markdown' ||
@@ -246,7 +319,13 @@ inputEl.addEventListener('drop', e=>{
       f.name.endsWith('.markdown')
     ){
       const reader = new FileReader();
-      reader.onload = ()=>{ inputEl.value = reader.result; setStatus('文件已载入'); };
+      reader.onload = ()=>{ 
+        const content = reader.result || '';
+        if (content.length > MAX_INPUT_CHARS){
+          setStatus(`文件内容过大（>${MAX_INPUT_CHARS.toLocaleString()} 字符），请分段处理`);
+          return;
+        }
+        setInputText(content); setStatus('文件已载入'); };
       reader.readAsText(f);
     } else {
       setStatus('仅支持 .txt / .md');
@@ -257,35 +336,62 @@ inputEl.addEventListener('drop', e=>{
   const text = dt.getData('text/plain');
   if (mode==='markdown'){
     const md = dt.getData('text/markdown');
-    if (md){ inputEl.value = md; setStatus('Markdown 已载入'); return; }
+    if (md){ 
+      if (md.length > MAX_INPUT_CHARS){ setStatus(`内容过大（>${MAX_INPUT_CHARS.toLocaleString()} 字符）`); return; }
+      setInputText(md); setStatus('Markdown 已载入'); return; }
     const html = dt.getData('text/html');
-    if (html){ const md2 = turndown.turndown(html); inputEl.value = md2; setStatus('HTML 已转换为 Markdown'); return; }
+    if (html){ 
+      const md2 = turndown.turndown(html);
+      if (md2.length > MAX_INPUT_CHARS){ setStatus(`内容过大（>${MAX_INPUT_CHARS.toLocaleString()} 字符）`); return; }
+      setInputText(md2); setStatus('HTML 已转换为 Markdown'); return; }
   const mdFromTsv = tsvToMarkdownIfTable(text);
-  if (mdFromTsv){ inputEl.value = mdFromTsv; setStatus('检测到表格 (TSV) · 已转换为 Markdown'); return; }
+  if (mdFromTsv){ 
+    if (mdFromTsv.length > MAX_INPUT_CHARS){ setStatus(`内容过大（>${MAX_INPUT_CHARS.toLocaleString()} 字符）`); return; }
+    setInputText(mdFromTsv); setStatus('检测到表格 (TSV) · 已转换为 Markdown'); return; }
   }
-  if (text){ inputEl.value = text; setStatus('文本已载入'); }
+  if (text){ 
+    if (text.length > MAX_INPUT_CHARS){ setStatus(`内容过大（>${MAX_INPUT_CHARS.toLocaleString()} 字符）`); return; }
+    setInputText(text); setStatus('文本已载入'); }
 });
 
-// 粘贴事件：保留 Markdown（或将 HTML 转为 Markdown）
-inputEl.addEventListener('paste', (e)=>{
-  const cd = e.clipboardData; if (!cd) return;
-  // 需求：粘贴前先清空输入与输出
-  inputEl.value = '';
-  outputRaw = '';
-  renderMarkdown('');
+// 使用 Quill Clipboard 模块处理粘贴
+clipboard.onPaste = (range, { text, html }) => {
+
   const mode = getPasteMode();
-  const text = cd.getData('text/plain');
-  if (mode==='markdown'){
-    const md = cd.getData('text/markdown');
-    if (md){ e.preventDefault(); inputEl.value = md; setStatus('已粘贴 Markdown'); return; }
-    const html = cd.getData('text/html');
-    if (html){ e.preventDefault(); const md2 = turndown.turndown(html); inputEl.value = md2; setStatus('已从 HTML 转 Markdown'); return; }
-  const mdFromTsv = tsvToMarkdownIfTable(text);
-  if (mdFromTsv){ e.preventDefault(); inputEl.value = mdFromTsv; setStatus('检测到表格 (TSV) · 已转换为 Markdown'); return; }
+  let statusMsg = '已粘贴文本';
+  let processedText = "";
+  outputRaw = "";
+  renderMarkdown('');
+
+  if (mode === 'markdown') {
+    if (html && html.trim()) {
+      processedText = turndown.turndown(html);
+      statusMsg = '已从 HTML 转 Markdown';
+    } else {
+      const mdFromTsv = tsvToMarkdownIfTable(text);
+      if (mdFromTsv) {
+        processedText = mdFromTsv;
+        statusMsg = '检测到表格 (TSV) · 已转换为 Markdown';
+      }
+    }
   }
-  // 否则默认（纯文本）
-  if (text){ e.preventDefault(); inputEl.value = text; setStatus('已粘贴文本'); }
-});
+
+  // 尺寸校验：processedText（若有）或原始 text
+  const finalText = processedText || text || '';
+  if (finalText.length > MAX_INPUT_CHARS){
+    setStatus(`粘贴内容过大（>${MAX_INPUT_CHARS.toLocaleString()} 字符），已取消插入`);
+    return;
+  }
+
+  const index = range ? range.index : inputEditor.getLength();
+  const length = range ? range.length : 0;
+  const delta = new Delta().retain(index).delete(length).insert(finalText);
+  inputEditor.updateContents(delta, 'user');
+  inputEditor.setSelection(index + finalText.length, 0, 'silent');
+
+  setStatus(statusMsg);
+};
+
 
 (function init(){
   const cfg = loadConfig();

@@ -8,6 +8,7 @@
   <meta name="theme-color" content="#0d0f11" />
   <script src="js/theme-init.js"></script>
   <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/quill.core.css" />
   <link rel="manifest" href="manifest.webmanifest" />
   
 </head>
@@ -32,7 +33,7 @@
     </section>
     <section class="panes">
       <div class="pane">
-      <textarea id="inputText" placeholder="在此粘贴或拖拽待翻译文本（含 .txt 文件）" spellcheck="false"></textarea>
+      <div id="inputText" class="ql-container" spellcheck="false"></div>
       </div>
   <div class="pane">
   <div id="outputView" class="markdown-body" aria-live="polite" tabindex="0" data-role="output" data-copy-source></div>
