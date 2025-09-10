@@ -281,26 +281,26 @@ clipboard.onPaste = (range, { text, html }) => {
 
   const mode = getPasteMode();
   let statusMsg = '已粘贴文本';
+  let processedText = "";
 
   if (mode === 'markdown') {
     if (html && html.trim()) {
-      text = turndown.turndown(html);
+      processedText = turndown.turndown(html);
       statusMsg = '已从 HTML 转 Markdown';
     } else {
       const mdFromTsv = tsvToMarkdownIfTable(text);
       if (mdFromTsv) {
-        text = mdFromTsv;
+        processedText = mdFromTsv;
         statusMsg = '检测到表格 (TSV) · 已转换为 Markdown';
       }
     }
   }
 
-  // text = text.replace(/\s+/g, ' ');
   const index = range ? range.index : inputEditor.getLength();
   const length = range ? range.length : 0;
-  const delta = new Delta().retain(index).delete(length).insert(text);
+  const delta = new Delta().retain(index).delete(length).insert(processedText || text);
   inputEditor.updateContents(delta, 'user');
-  inputEditor.setSelection(index + text.length, 0, 'silent');
+  inputEditor.setSelection(index + (processedText || text).length, 0, 'silent');
 
   setStatus(statusMsg);
 };
