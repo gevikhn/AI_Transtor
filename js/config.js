@@ -167,7 +167,7 @@ function migrateToMultiServices(dataIn){
   return merged;
 }
 
-function migrateConfig(dataIn){
+export function migrateConfig(dataIn){
   let data = { ...dataIn };
   const ver = data.version || 1;
   if (ver > CONFIG_VERSION) throw new Error('unsupported');

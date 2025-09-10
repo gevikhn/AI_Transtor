@@ -1,5 +1,5 @@
 // ui-settings-modal.js - 设置模态控制与表单逻辑复用
-import { loadConfig, saveConfig, validateConfig, exportConfig, importConfig, DEFAULT_PROMPT_TEMPLATE, encryptApiKey, encryptMasterPassword, decryptMasterPassword, ENC_META_KEY, MP_META_KEY, decryptApiKey, getActiveService, getActivePrompt, getActiveConfig, setActiveService, setActivePrompt, getApiKeyAuto } from './config.js';
+import { loadConfig, saveConfig, validateConfig, exportConfig, importConfig, DEFAULT_PROMPT_TEMPLATE, encryptApiKey, encryptMasterPassword, decryptMasterPassword, ENC_META_KEY, MP_META_KEY, decryptApiKey, getActiveService, getActivePrompt, getActiveConfig, setActiveService, setActivePrompt, getApiKeyAuto, migrateConfig } from './config.js';
 
 const overlay = document.getElementById('settingsOverlay');
 const openBtn = document.getElementById('openSettings');
@@ -419,7 +419,8 @@ async function applyImported(imported, prevCfgRaw, prevApiMeta, prevMpMeta){
       }
     }
     delete imported.__apiKeyMeta; delete imported.__apiKeyMetaMap; delete imported.__masterPasswordMeta;
-    saveConfig(imported); loadIntoForm();
+    const migrated = migrateConfig(imported);
+    saveConfig(migrated); loadIntoForm();
   } catch(e){
     if (prevCfgRaw) localStorage.setItem('AI_TR_CFG', prevCfgRaw); else localStorage.removeItem('AI_TR_CFG');
     if (prevApiMeta) localStorage.setItem(ENC_META_KEY, prevApiMeta); else localStorage.removeItem(ENC_META_KEY);
