@@ -23,7 +23,6 @@
   <main class="layout">
     <section class="controls">
       <label><select id="serviceSelect"></select></label>
-      <label><select id="promptSelect"></select></label>
       <label><select id="langSelect" data-ref="lang"></select></label>
       <div class="btn-row">
         <button id="btnTranslate" class="btn primary">翻译 (Ctrl+Enter)</button>
@@ -65,21 +64,11 @@
           </fieldset>
 
           <fieldset>
-            <legend>Prompt 管理</legend>
-            <div class="btn-row" style="gap:.5rem;align-items:flex-end;flex-wrap:wrap">
-              <label>当前 Prompt <select id="promptSelectSettings"></select></label>
-              <label>名称 <input id="promptName" type="text" placeholder="Prompt 名称"/></label>
-              <button type="button" id="btnAddPrompt" class="btn">新增 Prompt</button>
-              <button type="button" id="btnDelPrompt" class="btn danger">删除 Prompt</button>
-            </div>
-            <label>模板</label>
-            <textarea name="promptTemplate" data-field="promptTemplate" rows="10" placeholder="Prompt 模板"></textarea>
-          </fieldset>
-
-          <fieldset>
             <legend>全局</legend>
             <label>主密码（可选） <input name="masterPassword" id="masterPassword" data-field="masterPassword" type="password" placeholder="留空则使用默认密钥" autocomplete="new-password" /></label>
             <label>默认目标语言 <select name="targetLanguage" data-field="targetLanguage"></select></label>
+            <label>Prompt 模板</label>
+            <textarea name="promptTemplate" data-field="promptTemplate" rows="10" placeholder="Prompt 模板"></textarea>
           </fieldset>
 
           <fieldset>
