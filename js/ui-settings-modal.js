@@ -1,5 +1,5 @@
 // ui-settings-modal.js - 设置模态控制与表单逻辑复用
-import { loadConfig, saveConfig, validateConfig, exportConfig, importConfig, DEFAULT_PROMPT_TEMPLATE, encryptApiKey, encryptMasterPassword, decryptMasterPassword, ENC_META_KEY, MP_META_KEY, decryptApiKey, getActiveService, getActiveConfig, setActiveService, getApiKeyAuto } from './config.js';
+import { loadConfig, saveConfig, validateConfig, exportConfig, importConfig, DEFAULT_PROMPT_TEMPLATE, encryptApiKey, encryptMasterPassword, decryptMasterPassword, ENC_META_KEY, MP_META_KEY, decryptApiKey, getActiveService, getActivePrompt, getActiveConfig, setActiveService, setActivePrompt, getApiKeyAuto } from './config.js';
 
 const overlay = document.getElementById('settingsOverlay');
 const openBtn = document.getElementById('openSettings');
@@ -71,6 +71,12 @@ const svcName = document.getElementById('svcName');
 const btnAddSvc = document.getElementById('btnAddSvc');
 const btnDelSvc = document.getElementById('btnDelSvc');
 
+// Prompt 管理 UI
+const promptSelect = document.getElementById('promptSelectSettings');
+const promptName = document.getElementById('promptName');
+const btnAddPrompt = document.getElementById('btnAddPrompt');
+const btnDelPrompt = document.getElementById('btnDelPrompt');
+
 const LANGS = [ ['zh-CN','中文'],['en','English'],['ja','日本語'],['ko','한국어'],['fr','Français'],['de','Deutsch'] ];
 
 function fillLanguages(select, cfg){
@@ -97,7 +103,7 @@ function loadIntoForm(){
   // 全局字段
   [...form.querySelectorAll('[data-field]')].forEach(el=>{
     const key = el.getAttribute('data-field');
-    if (['apiKey','masterPassword'].includes(key)) return; // 这些字段单独处理
+    if (['apiKey','masterPassword','promptTemplate'].includes(key)) return; // 这些字段单独处理
     const serviceKeys = ['apiType','baseUrl','model','temperature','maxTokens'];
     if (serviceKeys.includes(key)){
       if (el.type==='checkbox') el.checked = !!svc[key]; else el.value = svc[key] == null ? '' : svc[key];
@@ -117,7 +123,17 @@ function loadIntoForm(){
     if (mpInput.dataset.raw) delete mpInput.dataset.raw;
     if (cfg.masterPasswordEnc){ mpInput.value = MASK; }
   }
-  if (!form.querySelector('[data-field=promptTemplate]').value){ form.querySelector('[data-field=promptTemplate]').value = DEFAULT_PROMPT_TEMPLATE; }
+  // Prompt 相关
+  const prompt = getActivePrompt(cfg);
+  if (promptSelect){
+    promptSelect.innerHTML='';
+    for (const p of cfg.prompts||[]){
+      const o=document.createElement('option'); o.value=p.id; o.textContent=p.name||p.id; if (p.id===cfg.activePromptId) o.selected=true; promptSelect.appendChild(o);
+    }
+  }
+  if (promptName) promptName.value = prompt.name || '';
+  const tplArea = form.querySelector('[data-field=promptTemplate]');
+  if (tplArea) tplArea.value = prompt.template || DEFAULT_PROMPT_TEMPLATE;
   fillLanguages(form.querySelector('[data-field=targetLanguage]'), cfg);
   statusEl.textContent = '已加载';
 }
@@ -146,11 +162,16 @@ form.addEventListener('submit', async e=>{
   // 回写表单字段（禁止将明文 apiKey 写入配置）
   [...form.querySelectorAll('[data-field]')].forEach(el=>{
     const key = el.getAttribute('data-field');
-    if (key === 'apiKey' || key === 'masterPassword') return; // 跳过保存明文字段
+    if (key === 'apiKey' || key === 'masterPassword' || key === 'promptTemplate') return; // 跳过保存明文字段
     const val = el.type==='checkbox' ? el.checked : el.value.trim();
     if (['apiType','baseUrl','model','temperature','maxTokens'].includes(key)) svc[key] = val;
     else next[key] = val;
   });
+  const prompt = { ...getActivePrompt(cfg) };
+  if (promptName && promptName.value.trim()){ prompt.name = promptName.value.trim(); }
+  const tplArea2 = form.querySelector('[data-field=promptTemplate]');
+  if (tplArea2){ prompt.template = tplArea2.value; }
+  next.prompts = (cfg.prompts||[]).map(p=> p.id===prompt.id ? { ...p, ...prompt } : p);
   // 兜底：移除可能残留的全局 apiKey/masterPassword 字段
   if ('apiKey' in next) delete next.apiKey;
   if ('masterPassword' in next) delete next.masterPassword;
@@ -247,7 +268,7 @@ form.addEventListener('submit', async e=>{
   next.services = otherServices.map(s=> s.id===svc.id ? { ...s, ...svc } : s);
   const errs = validateConfig(next);
   if (errs.length){ statusEl.textContent = errs.join(' / '); return; }
-  const prevCfgRaw = localStorage.getItem('AI_TR_CFG_V1');
+  const prevCfgRaw = localStorage.getItem('AI_TR_CFG');
   const prevMetaVals = {};
   const writtenMetaKeys = [];
   let prevMasterMeta;
@@ -278,8 +299,8 @@ form.addEventListener('submit', async e=>{
       if (prevMasterMeta === null || prevMasterMeta === undefined) localStorage.removeItem(MP_META_KEY);
       else localStorage.setItem(MP_META_KEY, prevMasterMeta);
     }
-    if (prevCfgRaw === null) localStorage.removeItem('AI_TR_CFG_V1');
-    else localStorage.setItem('AI_TR_CFG_V1', prevCfgRaw);
+    if (prevCfgRaw === null) localStorage.removeItem('AI_TR_CFG');
+    else localStorage.setItem('AI_TR_CFG', prevCfgRaw);
     statusEl.textContent='保存失败: '+e.message; return;
   }
   if (apiInput){
@@ -400,7 +421,7 @@ async function applyImported(imported, prevCfgRaw, prevApiMeta, prevMpMeta){
     delete imported.__apiKeyMeta; delete imported.__apiKeyMetaMap; delete imported.__masterPasswordMeta;
     saveConfig(imported); loadIntoForm();
   } catch(e){
-    if (prevCfgRaw) localStorage.setItem('AI_TR_CFG_V1', prevCfgRaw); else localStorage.removeItem('AI_TR_CFG_V1');
+    if (prevCfgRaw) localStorage.setItem('AI_TR_CFG', prevCfgRaw); else localStorage.removeItem('AI_TR_CFG');
     if (prevApiMeta) localStorage.setItem(ENC_META_KEY, prevApiMeta); else localStorage.removeItem(ENC_META_KEY);
     if (prevMpMeta) localStorage.setItem(MP_META_KEY, prevMpMeta); else localStorage.removeItem(MP_META_KEY);
     throw e;
@@ -409,7 +430,7 @@ async function applyImported(imported, prevCfgRaw, prevApiMeta, prevMpMeta){
 
 async function runImport(getImported, cleanup){
   statusEl.textContent='导入中...';
-  const prevCfgRaw = localStorage.getItem('AI_TR_CFG_V1');
+  const prevCfgRaw = localStorage.getItem('AI_TR_CFG');
   const prevApiMeta = localStorage.getItem(ENC_META_KEY);
   const prevMpMeta = localStorage.getItem(MP_META_KEY);
   let imported;
@@ -502,6 +523,26 @@ btnDelSvc?.addEventListener('click', ()=>{
   cfg.services = (cfg.services||[]).filter(s=>s.id!==id);
   cfg.activeServiceId = cfg.services[0].id;
   saveConfig(cfg); loadIntoForm(); unlockedPlainKey=null; statusEl.textContent='已删除当前服务配置';
+});
+
+// Prompt 切换/新增/删除
+promptSelect?.addEventListener('change', (e)=>{ setActivePrompt(e.target.value); loadIntoForm(); });
+btnAddPrompt?.addEventListener('click', ()=>{
+  const cfg = loadConfig();
+  const idx = (cfg.prompts||[]).length + 1;
+  const id = `p-${Date.now()}-${idx}`;
+  const base = { id, name:`Prompt${idx}`, template: DEFAULT_PROMPT_TEMPLATE };
+  cfg.prompts = [...(cfg.prompts||[]), base];
+  cfg.activePromptId = id;
+  saveConfig(cfg); loadIntoForm(); statusEl.textContent = '已新增 Prompt';
+});
+btnDelPrompt?.addEventListener('click', ()=>{
+  const cfg = loadConfig();
+  if ((cfg.prompts||[]).length<=1){ statusEl.textContent='至少保留一个 Prompt'; return; }
+  const id = cfg.activePromptId;
+  cfg.prompts = (cfg.prompts||[]).filter(p=>p.id!==id);
+  cfg.activePromptId = cfg.prompts[0].id;
+  saveConfig(cfg); loadIntoForm(); statusEl.textContent='已删除当前 Prompt';
 });
 
 // 首次不自动打开

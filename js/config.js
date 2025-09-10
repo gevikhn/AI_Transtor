@@ -1,7 +1,9 @@
 // config.js
 // 负责：配置数据结构、默认值、加载/保存、校验、加解密 & 迁移（支持多服务配置）
 
-const STORAGE_KEY = 'AI_TR_CFG_V1';
+const STORAGE_KEY = 'AI_TR_CFG';
+const CONFIG_VERSION = 2;
+const LEGACY_KEYS = ['AI_TR_CFG_V1'];
 
 /** 默认 Prompt 模板（异步加载外部文件后回填） */
 export let DEFAULT_PROMPT_TEMPLATE = `加载中...`;
@@ -10,11 +12,14 @@ fetch('./default.prompt')
   .then(t=>{
     if (t && DEFAULT_PROMPT_TEMPLATE==='加载中...'){
       DEFAULT_PROMPT_TEMPLATE = t.trim();
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw){
-        // 首次运行：落入默认配置（含模板）
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...defaultConfig, promptTemplate: DEFAULT_PROMPT_TEMPLATE }));
-      }
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw){
+          const cfg = { ...defaultConfig };
+          if (cfg.prompts && cfg.prompts[0]) cfg.prompts[0].template = DEFAULT_PROMPT_TEMPLATE;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
+        }
+      } catch { /* ignore */ }
     }
   })
   .catch(()=>{});
@@ -24,10 +29,10 @@ fetch('./default.prompt')
  * services: 服务配置数组；activeServiceId: 当前选中服务ID
  */
 const defaultConfig = {
+  version: CONFIG_VERSION,
   // 全局
   masterPasswordEnc: '',
   targetLanguage: 'zh-CN',
-  promptTemplate: DEFAULT_PROMPT_TEMPLATE,
   stream: true,
   temperature: 0,
   maxTokens: undefined,
@@ -49,7 +54,16 @@ const defaultConfig = {
       maxTokens: undefined
     }
   ],
-  activeServiceId: 'svc-1'
+  activeServiceId: 'svc-1',
+  // Prompt 管理
+  prompts: [
+    {
+      id: 'p-1',
+      name: '默认 Prompt',
+      template: DEFAULT_PROMPT_TEMPLATE
+    }
+  ],
+  activePromptId: 'p-1'
 };
 
 // ===== 加解密 & 元数据 Key =====
@@ -116,6 +130,17 @@ function normalizeServices(arr){
   });
 }
 
+function normalizePrompts(arr){
+  const list = Array.isArray(arr) ? arr : [];
+  return list.map((p,idx)=>{
+    const out = { ...p };
+    if (!out.id) out.id = `p-${idx+1}`;
+    if (!out.name) out.name = `Prompt${idx+1}`;
+    if (!out.template || out.template === '加载中...') out.template = DEFAULT_PROMPT_TEMPLATE;
+    return out;
+  });
+}
+
 function migrateToMultiServices(dataIn){
   // v1 -> v2：根级服务字段下沉为 services[0]
   const data = { ...dataIn };
@@ -142,20 +167,46 @@ function migrateToMultiServices(dataIn){
   return merged;
 }
 
+function migrateConfig(dataIn){
+  let data = { ...dataIn };
+  const ver = data.version || 1;
+  if (ver > CONFIG_VERSION) throw new Error('unsupported');
+  if (!Array.isArray(data.services)){
+    data = migrateToMultiServices(data);
+  }
+  if (ver < 2){
+    const tpl = data.promptTemplate && data.promptTemplate !== '加载中...' ? data.promptTemplate : DEFAULT_PROMPT_TEMPLATE;
+    data.prompts = [{ id:'p-1', name:'默认 Prompt', template: tpl }];
+    data.activePromptId = 'p-1';
+    delete data.promptTemplate;
+    data.version = 2;
+  }
+  return data;
+}
+
 export function loadConfig(){
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { ...defaultConfig };
-    let data = JSON.parse(raw);
-    // v1 -> v2 迁移
-    if (!Array.isArray(data.services)){
-      data = migrateToMultiServices(data);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    } else {
-      data.services = normalizeServices(data.services);
-      if (!data.activeServiceId) data.activeServiceId = data.services[0]?.id || 'svc-1';
+    let raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw){
+      for (const k of LEGACY_KEYS){
+        raw = localStorage.getItem(k);
+        if (raw) break;
+      }
+      if (!raw) return { ...defaultConfig };
     }
-    // 迁移 legacy 明文 masterPassword -> masterPasswordEnc
+    let data = JSON.parse(raw);
+    try {
+      data = migrateConfig(data);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      for (const k of LEGACY_KEYS){ try { localStorage.removeItem(k); } catch {} }
+    } catch(e){
+      alert('配置数据不兼容，请清除数据');
+      throw e;
+    }
+    data.services = normalizeServices(data.services);
+    if (!data.activeServiceId) data.activeServiceId = data.services[0]?.id || 'svc-1';
+    data.prompts = normalizePrompts(data.prompts);
+    if (!data.activePromptId) data.activePromptId = data.prompts[0]?.id || 'p-1';
     if (data.masterPassword && !data.masterPasswordEnc){
       (async ()=>{
         try {
@@ -169,20 +220,9 @@ export function loadConfig(){
     }
     if (data.masterPassword) delete data.masterPassword;
     if ('useMasterPassword' in data) delete data.useMasterPassword;
-    // 清理潜在明文 apiKey（根级与服务级）
     if ('apiKey' in data) delete data.apiKey;
     if (Array.isArray(data.services)) data.services = data.services.map(s=>{ const o={...s}; if ('apiKey' in o) delete o.apiKey; return o; });
-    if (!data.promptTemplate || data.promptTemplate === '加载中...') data.promptTemplate = DEFAULT_PROMPT_TEMPLATE;
-    // 规范化全局数字字段
     ['temperature','maxTokens','timeoutMs','retries'].forEach(k=>{ if (data[k]!==undefined && data[k]!=='' ) data[k] = Number(data[k]); });
-    // 规范化服务级温度/最大 Token（若未触发 normalizeServices）
-    if (Array.isArray(data.services)){
-      data.services = data.services.map(s=>({
-        ...s,
-        temperature: (s.temperature===undefined || s.temperature==='') ? 0 : Number(s.temperature),
-        maxTokens: (s.maxTokens===undefined || s.maxTokens==='') ? undefined : Number(s.maxTokens)
-      }));
-    }
     return { ...defaultConfig, ...data };
   } catch(e){
     console.warn('Failed to load config', e);
@@ -192,9 +232,12 @@ export function loadConfig(){
 
 export function saveConfig(cfg){
   const clean = { ...defaultConfig, ...cfg };
+  clean.version = CONFIG_VERSION;
   if ('theme' in clean) delete clean.theme; // 主题配置已废弃，不再持久化
   clean.services = normalizeServices(clean.services);
   if (!clean.activeServiceId) clean.activeServiceId = clean.services[0].id;
+  clean.prompts = normalizePrompts(clean.prompts);
+  if (!clean.activePromptId) clean.activePromptId = clean.prompts[0].id;
   if ('masterPassword' in clean) delete clean.masterPassword;
   if ('useMasterPassword' in clean) delete clean.useMasterPassword;
   // 确保不落盘任意明文字段 apiKey
@@ -213,10 +256,16 @@ export function getActiveService(cfg){
   return (cfg.services||[]).find(s=>s.id===id) || cfg.services?.[0] || defaultConfig.services[0];
 }
 
+export function getActivePrompt(cfg){
+  const id = cfg.activePromptId;
+  return (cfg.prompts||[]).find(p=>p.id===id) || cfg.prompts?.[0] || defaultConfig.prompts[0];
+}
+
 export function getActiveConfig(){
   const cfg = loadConfig();
   const svc = getActiveService(cfg);
-  return { ...cfg, ...svc };
+  const prompt = getActivePrompt(cfg);
+  return { ...cfg, ...svc, promptTemplate: prompt.template };
 }
 
 export function setActiveService(id){
@@ -230,6 +279,14 @@ export function setActiveService(id){
   cachedKeyCipher = null;
   cachedServiceId = null;
   return cfg.activeServiceId;
+}
+
+export function setActivePrompt(id){
+  const cfg = loadConfig();
+  if ((cfg.prompts||[]).some(p=>p.id===id)){
+    cfg.activePromptId = id; saveConfig(cfg);
+  }
+  return cfg.activePromptId;
 }
 
 export function validateConfig(cfg){
