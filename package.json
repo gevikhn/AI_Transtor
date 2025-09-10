@@ -15,6 +15,7 @@
     "serve-static": "^2.2.0"
   },
   "dependencies": {
+    "gpt-tokenizer": "^2.5.1",
     "markdown-it": "^14.1.0",
     "quill": "2.0.3",
     "quill-delta": "^5.1.0",
