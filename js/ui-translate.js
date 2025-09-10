@@ -277,16 +277,12 @@ inputEl.addEventListener('drop', e=>{
 });
 
 // 使用 Quill Clipboard 模块处理粘贴
-clipboard.onPaste = (e) => {
-  e.preventDefault();
-  e.stopPropagation();
+clipboard.onPaste = (range, { text, html }) => {
 
   const mode = getPasteMode();
-  let text = e.clipboardData?.getData('text/plain') || '';
   let statusMsg = '已粘贴文本';
 
   if (mode === 'markdown') {
-    const html = e.clipboardData?.getData('text/html');
     if (html && html.trim()) {
       text = turndown.turndown(html);
       statusMsg = '已从 HTML 转 Markdown';
@@ -299,8 +295,7 @@ clipboard.onPaste = (e) => {
     }
   }
 
-  text = text.replace(/\s+/g, ' ');
-  const range = inputEditor.getSelection(true);
+  // text = text.replace(/\s+/g, ' ');
   const index = range ? range.index : inputEditor.getLength();
   const length = range ? range.length : 0;
   const delta = new Delta().retain(index).delete(length).insert(text);
@@ -309,6 +304,7 @@ clipboard.onPaste = (e) => {
 
   setStatus(statusMsg);
 };
+
 
 (function init(){
   const cfg = loadConfig();
