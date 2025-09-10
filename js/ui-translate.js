@@ -228,19 +228,6 @@ async function doTranslate(){
           produced=true; 
             buffer.pending += chunk; 
             scheduleFlush();
-            // 实时 token 估算（输出 + 输入）
-            const now = performance.now();
-            if (!tokenCalcPending && now - lastTokenUpdate > TOKEN_STATUS_INTERVAL){
-              tokenCalcPending = true;
-              (async()=>{
-                const inTok = inTokCached ?? (inTokCached = await countTokensAccurate(text));
-                const promptText = renderTemplate(cfg.promptTemplate, { text, target_language: langSelect.value });
-                const promptTok = promptTokCached ?? (promptTokCached = await countTokensAccurate(promptText));
-                setStatus(`流式中... in:${inTok} / prompt:${promptTok} token`);
-                lastTokenUpdate = performance.now();
-                tokenCalcPending = false;
-              })();
-            }
         }
       }
   if (buffer.pending){ outputRaw += buffer.pending; buffer.pending=''; renderMarkdown(outputRaw); }
