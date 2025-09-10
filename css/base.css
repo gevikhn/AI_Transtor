@@ -86,6 +86,7 @@ input:focus,select:focus{outline:2px solid var(--accent);outline-offset:0}
     flex-direction:row;
     flex-wrap:wrap;
   }
+  .modal-body.settings-body .settings-actions #toggleSettingsActions{display:none}
   .modal-body.settings-body .settings-actions .btn-row{flex-direction:row}
   .modal-body.settings-body .settings-actions .btn-row .btn{
     flex:1 0 calc(50% - var(--gap)/2);

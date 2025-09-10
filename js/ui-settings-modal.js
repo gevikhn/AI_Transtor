@@ -54,10 +54,22 @@ function hasActiveSubOverlay(){
   return (!!u && !u.hidden) || (!!m && !m.hidden);
 }
 
-try {
-  const initCollapsed = localStorage.getItem(COLLAPSE_KEY) === '1';
-  applyActionsCollapsed(initCollapsed);
-} catch {}
+const mqActions = window.matchMedia('(max-width:820px)');
+function syncActionsCollapse(){
+  if (mqActions.matches){
+    applyActionsCollapsed(false);
+  } else {
+    try {
+      const initCollapsed = localStorage.getItem(COLLAPSE_KEY) === '1';
+      applyActionsCollapsed(initCollapsed);
+    } catch (e) {
+      console.error('Failed to read collapse state from localStorage:', e);
+      applyActionsCollapsed(false);
+    }
+  }
+}
+syncActionsCollapse();
+mqActions.addEventListener('change', syncActionsCollapse);
 if (toggleActions){
   toggleActions.addEventListener('click', ()=>{
     const now = !(actionsPanel && actionsPanel.classList.contains('collapsed'));
