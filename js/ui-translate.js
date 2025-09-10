@@ -1,5 +1,5 @@
 // ui-translate.js - 翻译页逻辑 (v0.1 非流式)
-import { loadConfig, setActiveService, getActiveConfig } from './config.js';
+import { loadConfig, setActiveService, setActivePrompt, getActiveConfig } from './config.js';
 import { renderTemplate } from './prompt.js';
 import { translateOnce, translateStream } from './api.js';
 import { copyToClipboard, estimateTokens } from './utils.js';
@@ -11,6 +11,7 @@ import Delta from 'quill-delta';
 
 const langSelect = document.getElementById('langSelect');
 const serviceSelect = document.getElementById('serviceSelect');
+const promptSelect = document.getElementById('promptSelect');
 const inputEditor = new Quill('#inputText', {
   modules: { toolbar: false },
   theme: 'snow',
@@ -48,6 +49,16 @@ function populateServices(cfg){
   for (const s of list){
     const o = document.createElement('option');
     o.value = s.id; o.textContent = s.name || s.id; if (s.id===cfg.activeServiceId) o.selected = true; serviceSelect.appendChild(o);
+  }
+}
+
+function populatePrompts(cfg){
+  if (!promptSelect) return;
+  promptSelect.innerHTML='';
+  const list = cfg.prompts || [];
+  for (const p of list){
+    const o = document.createElement('option');
+    o.value = p.id; o.textContent = p.name || p.id; if (p.id===cfg.activePromptId) o.selected = true; promptSelect.appendChild(o);
   }
 }
 
@@ -397,6 +408,7 @@ clipboard.onPaste = (range, { text, html }) => {
   const cfg = loadConfig();
   populateLangs(cfg);
   populateServices(cfg);
+  populatePrompts(cfg);
   // 不再恢复上次输入/输出
   bindPasteToggle();
 })();
@@ -410,18 +422,25 @@ serviceSelect?.addEventListener('change', (e)=>{
   setActiveService(id);
 });
 
+promptSelect?.addEventListener('change', (e)=>{
+  const id = e.target.value;
+  setActivePrompt(id);
+});
+
 // 监听配置变更事件，动态刷新服务下拉与语言（如默认语言修改）
 window.addEventListener('ai-tr:config-changed', ()=>{
   const cfg = loadConfig();
   populateServices(cfg);
   populateLangs(cfg);
+  populatePrompts(cfg);
 });
 
 // 跨标签页/窗口更新：监听 localStorage 变更
 window.addEventListener('storage', (e)=>{
-  if (e.key === 'AI_TR_CFG_V1'){
+  if (e.key === 'AI_TR_CFG'){
     const cfg = loadConfig();
     populateServices(cfg);
     populateLangs(cfg);
+    populatePrompts(cfg);
   }
 });
