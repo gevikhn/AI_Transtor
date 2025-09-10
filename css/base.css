@@ -84,12 +84,12 @@ input:focus,select:focus{outline:2px solid var(--accent);outline-offset:0}
   .modal-body.settings-body .settings-actions{
     order:-1;
     flex-direction:row;
-    flex-wrap:wrap
+    flex-wrap:wrap;
   }
   .modal-body.settings-body .settings-actions #toggleSettingsActions{display:none}
   .modal-body.settings-body .settings-actions .btn-row{flex-direction:row}
   .modal-body.settings-body .settings-actions .btn-row .btn{
-    flex:1 0 calc(50% - 4px);
+    flex:1 0 calc(50% - var(--gap)/2);
     width:auto
   }
   .modal-body.settings-body .settings-actions .status{margin-top:0}
