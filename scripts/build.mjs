@@ -53,18 +53,13 @@ async function run({ watch=false }={}){
   const skipClean = process.argv.includes('--no-clean');
   if (!skipClean){ rmDirSafe(distDir); }
   ensureDir(distDir); copyStatics();
-  // 注入构建日期到 index.html
   const idxPath = path.join(distDir,'index.html');
   if (fs.existsSync(idxPath)){
     try {
-  const now = new Date();
-  // 转为 UTC+8
-  const tz = new Date(now.getTime() + 8*60*60*1000);
-  const pad = n=>String(n).padStart(2,'0');
   // 读取版本号
   let version = '0.0.0';
   try { const pkg = JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8')); version = pkg.version || version; } catch {}
-  const stamp = 'v'+version+' '+tz.getUTCFullYear()+ '-' + pad(tz.getUTCMonth()+1)+'-'+pad(tz.getUTCDate())+' '+pad(tz.getUTCHours())+':'+pad(tz.getUTCMinutes())+':'+pad(tz.getUTCSeconds());
+  const stamp = 'v'+version;
       let html = fs.readFileSync(idxPath,'utf8');
       html = html.replace(/<small id="buildInfo"[^>]*><\/small>/, m=> m.replace('</small>', stamp + '</small>'));
       fs.writeFileSync(idxPath, html);
