@@ -62,7 +62,8 @@ function syncActionsCollapse(){
     try {
       const initCollapsed = localStorage.getItem(COLLAPSE_KEY) === '1';
       applyActionsCollapsed(initCollapsed);
-    } catch {
+    } catch (e) {
+      console.error('Failed to read collapse state from localStorage:', e);
       applyActionsCollapsed(false);
     }
   }
