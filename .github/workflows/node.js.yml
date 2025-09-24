@@ -43,7 +43,7 @@ jobs:
     
     # Only upload artifacts from one Node.js version to avoid conflicts
     - name: Upload build artifacts
-      if: matrix.node-version == '20.x' && github.ref == 'refs/heads/main'
+      if: matrix.node-version == '20.x'
       uses: actions/upload-pages-artifact@v3
       with:
         path: ./dist
