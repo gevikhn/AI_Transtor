@@ -80,6 +80,14 @@ npm run clean
 
 详细任务进度及 Changelog 参见 `INIT.md`。
 
+## 部署
+项目配置了 GitHub Actions 自动部署到 GitHub Pages。当代码推送到 `main` 分支时，会自动执行以下步骤：
+1. 安装依赖 (`npm ci`)
+2. 构建项目 (`npm run build`)
+3. 将 `dist/` 目录部署到 GitHub Pages
+
+部署后的应用可通过 `https://<username>.github.io/AI_Transtor` 访问。
+
 ## 许可
 （未指定，可按需要添加 LICENSE 文件）
 
