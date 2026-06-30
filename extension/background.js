@@ -1,8 +1,17 @@
 const MENU_TRANSLATE_SELECTION = 'ai-tr-translate-selection';
 const MENU_TRANSLATE_IMAGE = 'ai-tr-translate-image';
+const COMMAND_OPEN_SIDE_PANEL = '_execute_action';
 const PENDING_JOB_KEY = 'AI_TR_PENDING_SELECTION_JOB';
 const MESSAGE_SELECTION_JOB = 'AI_TR_SELECTION_JOB';
+const MESSAGE_GET_SHORTCUT_STATUS = 'AI_TR_GET_SHORTCUT_STATUS';
+const MESSAGE_OPEN_SHORTCUT_SETTINGS = 'AI_TR_OPEN_SHORTCUT_SETTINGS';
+const MESSAGE_TRANSLATE_ACTIVE_SELECTION = 'AI_TR_TRANSLATE_ACTIVE_SELECTION';
+const SHORTCUT_SETTINGS_URL = 'chrome://extensions/shortcuts';
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+const SELECTION_DEDUPE_MS = 1500;
+
+let lastSelectionSignature = '';
+let lastSelectionAt = 0;
 
 const BG_I18N = {
   'zh-CN': {
@@ -40,6 +49,32 @@ function bgT(key, params={}){
 
 function getStorageArea(){
   return chrome.storage?.session || chrome.storage?.local;
+}
+
+function getLastFocusedWindowId(){
+  if (!chrome.windows?.getLastFocused) return Promise.resolve(undefined);
+  return new Promise(resolve => {
+    chrome.windows.getLastFocused({}, windowInfo => {
+      if (chrome.runtime.lastError){
+        resolve(undefined);
+        return;
+      }
+      resolve(windowInfo?.id);
+    });
+  });
+}
+
+function getActiveTab(){
+  if (!chrome.tabs?.query) return Promise.resolve(null);
+  return new Promise(resolve => {
+    chrome.tabs.query({ active: true, lastFocusedWindow: true }, tabs => {
+      if (chrome.runtime.lastError || !tabs?.[0]){
+        resolve(null);
+        return;
+      }
+      resolve(tabs[0]);
+    });
+  });
 }
 
 async function configureSidePanel(){
@@ -134,6 +169,32 @@ async function readRichSelection(info, tab){
   }
 }
 
+async function readActiveSelection(tab){
+  if (!chrome.scripting?.executeScript || !tab?.id) return null;
+
+  const targets = [
+    { tabId: tab.id, allFrames: true },
+    { tabId: tab.id }
+  ];
+
+  for (const target of targets){
+    try {
+      const results = await chrome.scripting.executeScript({
+        target,
+        func: collectSelectionFromPage
+      });
+      const match = results
+        ?.map(result => result?.result)
+        .find(selection => String(selection?.text || '').trim());
+      if (match) return match;
+    } catch {
+      // Some pages or frames reject script injection. Fall back to opening the side panel only.
+    }
+  }
+
+  return null;
+}
+
 function inferImageName(srcUrl, type){
   try {
     const url = new URL(srcUrl);
@@ -200,14 +261,110 @@ async function notifyOpenPanel(job){
   }
 }
 
-function openSidePanelForTab(tab){
-  if (!chrome.sidePanel?.open || !tab?.windowId) return Promise.resolve();
+function makeSelectionSignature(tab, text){
+  return [
+    tab?.id || '',
+    tab?.url || '',
+    String(text || '').slice(0, 2000)
+  ].join('\n');
+}
+
+function shouldSkipDuplicateSelection(tab, text){
+  const signature = makeSelectionSignature(tab, text);
+  const now = Date.now();
+  if (signature && signature === lastSelectionSignature && now - lastSelectionAt < SELECTION_DEDUPE_MS){
+    return true;
+  }
+  lastSelectionSignature = signature;
+  lastSelectionAt = now;
+  return false;
+}
+
+function rememberSelection(tab, text){
+  lastSelectionSignature = makeSelectionSignature(tab, text);
+  lastSelectionAt = Date.now();
+}
+
+async function queueSelectionJob(tab, richSelection, openPromise=Promise.resolve()){
+  const text = String(richSelection?.text || '').trim();
+  if (!text) {
+    await openPromise;
+    return { ok: false, reason: 'no_selection' };
+  }
+  if (shouldSkipDuplicateSelection(tab, text)){
+    await openPromise;
+    return { ok: true, duplicate: true };
+  }
+
+  const job = makeSelectionJob({ selectionText: text }, tab, richSelection);
+  const storePromise = storeSelectionJob(job);
+
+  await Promise.allSettled([storePromise, openPromise]);
+  await notifyOpenPanel(job);
+  return { ok: true, jobId: job.id };
+}
+
+async function openSidePanelForWindowId(windowId){
+  if (!chrome.sidePanel?.open || !Number.isInteger(windowId)) return false;
   try {
-    return chrome.sidePanel.open({ windowId: tab.windowId });
+    await chrome.sidePanel.open({ windowId });
+    return true;
   } catch (error) {
     console.warn('Failed to open side panel', error);
-    return Promise.resolve();
+    return false;
   }
+}
+
+function openSidePanelForTab(tab){
+  return openSidePanelForWindowId(tab?.windowId);
+}
+
+async function openSidePanelForCommand(tab){
+  const windowId = Number.isInteger(tab?.windowId) ? tab.windowId : await getLastFocusedWindowId();
+  return openSidePanelForWindowId(windowId);
+}
+
+function getShortcutCommands(){
+  if (!chrome.commands?.getAll) return Promise.resolve([]);
+  return new Promise(resolve => {
+    chrome.commands.getAll(commands => {
+      if (chrome.runtime.lastError){
+        console.warn('Failed to read shortcut commands', chrome.runtime.lastError);
+        resolve([]);
+        return;
+      }
+      resolve(Array.isArray(commands) ? commands : []);
+    });
+  });
+}
+
+async function getShortcutStatus(){
+  const commands = await getShortcutCommands();
+  const command = commands.find(item => item.name === COMMAND_OPEN_SIDE_PANEL);
+  return {
+    ok: !!command,
+    command: COMMAND_OPEN_SIDE_PANEL,
+    shortcut: command?.shortcut || '',
+    description: command?.description || ''
+  };
+}
+
+async function openShortcutSettings(){
+  if (!chrome.tabs?.create) return { ok: false, error: 'tabs_unavailable' };
+  try {
+    await chrome.tabs.create({ url: SHORTCUT_SETTINGS_URL });
+    return { ok: true };
+  } catch (error) {
+    console.warn('Failed to open shortcut settings', error);
+    return { ok: false, error: error?.message || 'open_failed' };
+  }
+}
+
+function handleRuntimeMessage(message){
+  if (message?.type === MESSAGE_GET_SHORTCUT_STATUS) return getShortcutStatus();
+  if (message?.type === MESSAGE_OPEN_SHORTCUT_SETTINGS) return openShortcutSettings();
+  if (message?.type === MESSAGE_TRANSLATE_ACTIVE_SELECTION) return handleTranslateActiveSelection();
+  return null;
 }
 
 async function handleContextMenuClick(info, tab){
@@ -231,6 +388,7 @@ async function handleContextMenuClick(info, tab){
   if (info.menuItemId !== MENU_TRANSLATE_SELECTION) return;
   const text = String(info.selectionText || '').trim();
   if (!text || !tab?.windowId) return;
+  rememberSelection(tab, text);
 
   const openPromise = openSidePanelForTab(tab);
   const richSelection = await readRichSelection(info, tab);
@@ -239,6 +397,19 @@ async function handleContextMenuClick(info, tab){
 
   await Promise.allSettled([storePromise, openPromise]);
   await notifyOpenPanel(job);
+}
+
+async function handleActionOpen(tab){
+  const openPromise = openSidePanelForCommand(tab);
+  const richSelection = await readActiveSelection(tab);
+  await queueSelectionJob(tab, richSelection, openPromise);
+}
+
+async function handleTranslateActiveSelection(){
+  const tab = await getActiveTab();
+  if (!tab?.id) return { ok: false, reason: 'no_active_tab' };
+  const richSelection = await readActiveSelection(tab);
+  return queueSelectionJob(tab, richSelection);
 }
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -252,6 +423,29 @@ chrome.runtime.onStartup?.addListener(() => {
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   handleContextMenuClick(info, tab);
+});
+
+chrome.commands?.onCommand?.addListener((command, tab) => {
+  if (command !== COMMAND_OPEN_SIDE_PANEL) return;
+  handleActionOpen(tab);
+});
+
+chrome.action?.onClicked?.addListener(tab => {
+  handleActionOpen(tab);
+});
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  const maybeResponse = handleRuntimeMessage(message);
+  if (!maybeResponse) return false;
+  Promise.resolve(maybeResponse)
+    .then(response => {
+      if (response) sendResponse(response);
+    })
+    .catch(error => {
+      console.warn('Failed to handle runtime message', error);
+      sendResponse({ ok: false, error: error?.message || 'message_failed' });
+    });
+  return true;
 });
 
 configureSidePanel();

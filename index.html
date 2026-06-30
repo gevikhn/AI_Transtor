@@ -139,6 +139,11 @@
             <legend data-i18n="section.global">全局</legend>
             <label data-i18n-label-prefix="field.masterPassword">主密码（可选） <input name="masterPassword" id="masterPassword" data-field="masterPassword" type="password" placeholder="留空则使用默认密钥" autocomplete="new-password" data-i18n-placeholder="placeholder.masterPassword" /></label>
             <label data-i18n-label-prefix="field.outputLanguage">输出语言 <select name="targetLanguage" data-field="targetLanguage"></select></label>
+            <div id="shortcutSettingsRow" class="shortcut-settings" hidden>
+              <span class="shortcut-label" data-i18n="field.sidePanelShortcut">侧边栏快捷键</span>
+              <span id="shortcutStatus" class="status" aria-live="polite" data-i18n="status.shortcutUnavailable">当前环境不支持扩展快捷键</span>
+              <button type="button" id="btnManageShortcut" class="btn" title="修改/关闭" data-i18n="action.manageShortcut" data-i18n-title="action.manageShortcut">修改/关闭</button>
+            </div>
           </fieldset>
 
           <fieldset>

@@ -4,5 +4,8 @@
   },
   "extDescription": {
     "message": "在 AI Translator 侧边栏中翻译网页选中文本和图片。"
+  },
+  "commandOpenSidePanel": {
+    "message": "打开 AI Translator 侧边栏"
   }
 }
