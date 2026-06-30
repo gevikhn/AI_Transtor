@@ -8,6 +8,9 @@ const closeBtn = document.getElementById('closeSettings');
 const form = document.getElementById('settingsForm');
 const statusEl = document.getElementById('settingsStatus');
 const importFile = document.getElementById('importFile');
+const shortcutRow = document.getElementById('shortcutSettingsRow');
+const shortcutStatus = document.getElementById('shortcutStatus');
+const btnManageShortcut = document.getElementById('btnManageShortcut');
 
 const btnTest = document.getElementById('btnTest');
 const btnExport = document.getElementById('btnExport');
@@ -18,6 +21,8 @@ const btnImportUrl = document.getElementById('btnImportUrl');
 const actionsPanel = document.querySelector('.settings-actions');
 const toggleActions = document.getElementById('toggleSettingsActions');
 const COLLAPSE_KEY = 'AI_TR_SETTINGS_ACTIONS_COLLAPSED';
+const MESSAGE_GET_SHORTCUT_STATUS = 'AI_TR_GET_SHORTCUT_STATUS';
+const MESSAGE_OPEN_SHORTCUT_SETTINGS = 'AI_TR_OPEN_SHORTCUT_SETTINGS';
 
 // ===== Body scroll lock with reference counting =====
 let __overlayLockCount = 0;
@@ -93,6 +98,54 @@ function fillLanguages(select, cfg){
   select.innerHTML='';
   for (const [v,l] of getTargetLanguageOptions()){ const o=document.createElement('option'); o.value=v; o.textContent=l; if (cfg.targetLanguage===v) o.selected=true; select.appendChild(o);} }
 
+function isExtensionShortcutEnvironment(){
+  return location.protocol === 'chrome-extension:' &&
+    typeof chrome !== 'undefined' &&
+    !!chrome.runtime?.id &&
+    typeof chrome.runtime.sendMessage === 'function';
+}
+
+function sendExtensionMessage(message){
+  return new Promise((resolve, reject)=>{
+    try {
+      chrome.runtime.sendMessage(message, response => {
+        const error = chrome.runtime.lastError;
+        if (error){
+          reject(error);
+          return;
+        }
+        resolve(response);
+      });
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+async function refreshShortcutStatus(){
+  if (!shortcutRow || !shortcutStatus) return;
+  if (!isExtensionShortcutEnvironment()){
+    shortcutRow.hidden = true;
+    shortcutStatus.textContent = t('status.shortcutUnavailable');
+    return;
+  }
+
+  shortcutRow.hidden = false;
+  try {
+    const response = await sendExtensionMessage({ type: MESSAGE_GET_SHORTCUT_STATUS });
+    if (!response?.ok){
+      shortcutStatus.textContent = t('status.shortcutUnavailable');
+      return;
+    }
+    const shortcut = String(response.shortcut || '').trim();
+    shortcutStatus.textContent = shortcut
+      ? t('status.shortcutAssigned', { shortcut })
+      : t('status.shortcutUnassigned');
+  } catch {
+    shortcutStatus.textContent = t('status.shortcutUnavailable');
+  }
+}
+
 let unlockedPlainKey = null; // 仅缓存当前服务的明文 Key
 const MASK = '******';
 
@@ -153,6 +206,7 @@ function open(){
   loadIntoForm();
   overlay.hidden=false;
   lockBodyScroll(overlay);
+  refreshShortcutStatus();
 }
 function close(){ overlay.hidden=true; unlockBodyScroll(overlay); }
 
@@ -161,6 +215,22 @@ closeBtn.addEventListener('click', close);
 overlay.addEventListener('click', e=>{ if (e.target===overlay) close(); });
 window.addEventListener('keydown', e=>{
   if (e.key==='Escape' && !overlay.hidden && !hasActiveSubOverlay()) close();
+});
+window.addEventListener('focus', ()=>{
+  if (!overlay.hidden) refreshShortcutStatus();
+});
+
+btnManageShortcut?.addEventListener('click', async()=>{
+  if (!isExtensionShortcutEnvironment()){
+    if (shortcutStatus) shortcutStatus.textContent = t('status.shortcutUnavailable');
+    return;
+  }
+  try {
+    const response = await sendExtensionMessage({ type: MESSAGE_OPEN_SHORTCUT_SETTINGS });
+    if (!response?.ok && shortcutStatus) shortcutStatus.textContent = t('status.shortcutOpenFailed');
+  } catch {
+    if (shortcutStatus) shortcutStatus.textContent = t('status.shortcutOpenFailed');
+  }
 });
 
 form.addEventListener('submit', async e=>{

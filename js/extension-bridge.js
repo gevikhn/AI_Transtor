@@ -1,5 +1,6 @@
 const PENDING_JOB_KEY = 'AI_TR_PENDING_SELECTION_JOB';
 const MESSAGE_SELECTION_JOB = 'AI_TR_SELECTION_JOB';
+const MESSAGE_TRANSLATE_ACTIVE_SELECTION = 'AI_TR_TRANSLATE_ACTIVE_SELECTION';
 
 function isExtensionPage(){
   return location.protocol === 'chrome-extension:' &&
@@ -11,6 +12,7 @@ if (isExtensionPage()){
   const storageArea = chrome.storage?.session || chrome.storage?.local;
   const storageAreaName = chrome.storage?.session ? 'session' : 'local';
   let lastJobId = '';
+  let lastActiveSelectionRequestAt = 0;
 
   function dispatchSelectionJob(job){
     if (!job || typeof job !== 'object') return;
@@ -40,30 +42,67 @@ if (isExtensionPage()){
     }));
   }
 
-  async function consumePendingJob(){
-    if (!storageArea) return;
+  function sendRuntimeMessage(message){
+    return new Promise((resolve, reject)=>{
+      try {
+        chrome.runtime.sendMessage(message, response => {
+          const error = chrome.runtime.lastError;
+          if (error){
+            reject(error);
+            return;
+          }
+          resolve(response);
+        });
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  async function requestActiveSelectionJob(){
+    const now = Date.now();
+    if (now - lastActiveSelectionRequestAt < 500) return;
+    lastActiveSelectionRequestAt = now;
     try {
-      const result = await storageArea.get(PENDING_JOB_KEY);
-      const job = result?.[PENDING_JOB_KEY];
-      if (!job) return;
-      await storageArea.remove(PENDING_JOB_KEY);
-      dispatchSelectionJob(job);
-    } catch (error) {
-      console.warn('Failed to consume pending translation job', error);
+      await sendRuntimeMessage({ type: MESSAGE_TRANSLATE_ACTIVE_SELECTION });
+    } catch {
+      // Some extension surfaces can open without a readable web tab. Ignore and keep the side panel open.
     }
   }
 
-  function scheduleConsumePendingJob(){
+  async function consumePendingJob(){
+    if (!storageArea) return false;
+    try {
+      const result = await storageArea.get(PENDING_JOB_KEY);
+      const job = result?.[PENDING_JOB_KEY];
+      if (!job) return false;
+      await storageArea.remove(PENDING_JOB_KEY);
+      dispatchSelectionJob(job);
+      return true;
+    } catch (error) {
+      console.warn('Failed to consume pending translation job', error);
+      return false;
+    }
+  }
+
+  function scheduleOpenSync(){
     setTimeout(() => {
-      consumePendingJob();
+      consumePendingJob().then(consumed => {
+        if (!consumed) requestActiveSelectionJob();
+      });
     }, 0);
   }
 
   if (document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', scheduleConsumePendingJob, { once: true });
+    document.addEventListener('DOMContentLoaded', scheduleOpenSync, { once: true });
   } else {
-    scheduleConsumePendingJob();
+    scheduleOpenSync();
   }
+
+  window.addEventListener('focus', requestActiveSelectionJob);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) requestActiveSelectionJob();
+  });
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message?.type !== MESSAGE_SELECTION_JOB) return;
